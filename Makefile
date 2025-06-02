@@ -24,3 +24,9 @@ lint: ## Lint the code
 	mypy --pretty .
 
 check-all: check-licenses lint ## Run all checks
+
+run-local-dev-backend:
+	PYTHONPATH=app_backend SERVE_STATIC_FRONTEND=False DEV_MODE=True ./app_backend/start-app.sh
+
+run-local-static-backend:
+	PYTHONPATH=app_backend DEV_MODE=True ./app_backend/start-app.sh
