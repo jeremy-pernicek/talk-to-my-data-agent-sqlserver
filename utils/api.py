@@ -18,6 +18,7 @@ import asyncio
 import inspect
 import json
 import logging
+import os
 import re
 import sys
 import tempfile
@@ -55,7 +56,7 @@ from openai.types.chat.chat_completion_user_message_param import (
 from plotly.subplots import make_subplots
 from pydantic import ValidationError
 
-sys.path.append("..")
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from utils import prompts, tools
 from utils.analyst_db import AnalystDB, DataSourceType
 from utils.code_execution import (
@@ -162,6 +163,8 @@ ALTERNATIVE_LLM_SMALL = "datarobot-deployed-llm"
 DICTIONARY_BATCH_SIZE = 10
 MAX_REGISTRY_DATASET_SIZE = 400e6  # aligns to 400MB set in streamlit config.toml
 DISK_CACHE_LIMIT_BYTES = 512e6
+DICTIONARY_PARALLEL_BATCH_SIZE = 2
+DICTIONARY_TIMEOUT = 45.0
 
 _memory = Memory(tempfile.gettempdir(), verbose=0)
 _memory.clear(warn=False)  # clear cache on startup
@@ -259,11 +262,8 @@ async def download_registry_datasets(
     result_datasets: list[AnalystDataset] = []
     for dataset in datasets:
         try:
-            df_records = cast(
-                list[dict[str, Any]],
-                dataset.get_as_dataframe().to_dict(orient="records"),
-            )
-            result_datasets.append(AnalystDataset(name=dataset.name, data=df_records))
+            df = dataset.get_as_dataframe()
+            result_datasets.append(AnalystDataset(name=dataset.name, data=df))
             logger.info(f"Successfully downloaded {dataset.name}")
         except Exception as e:
             logger.error(f"Failed to read dataset {dataset.name}: {str(e)}")
@@ -418,13 +418,49 @@ async def get_dictionary(dataset: AnalystDataset) -> DataDictionary:
             f"Created {len(column_batches)} batches for {len(df.columns)} columns"
         )
 
-        tasks = [
-            _get_dictionary_batch(batch, df, DICTIONARY_BATCH_SIZE)
-            for batch in column_batches
-        ]
+        # Create a semaphore to limit concurrent tasks to 2
+        sem = asyncio.Semaphore(DICTIONARY_PARALLEL_BATCH_SIZE)
 
-        results = await asyncio.gather(*tasks)
-        dictionary = sum(results, [])
+        async def throttled_get_dictionary_batch(
+            batch: list[str],
+        ) -> list[DataDictionaryColumn]:
+            try:
+                async with sem:
+                    return await asyncio.wait_for(
+                        _get_dictionary_batch(batch, df, DICTIONARY_BATCH_SIZE),
+                        timeout=DICTIONARY_TIMEOUT,
+                    )
+            except asyncio.TimeoutError:
+                logger.warning(f"Timeout processing batch: {batch}")
+                return [
+                    DataDictionaryColumn(
+                        column=col,
+                        description="No Description Available",
+                        data_type=str(df[col].dtype),
+                    )
+                    for col in batch
+                ]
+            except Exception as e:
+                logger.error(f"Error processing batch {batch}: {str(e)}")
+                return [
+                    DataDictionaryColumn(
+                        column=col,
+                        description="No Description Available",
+                        data_type=str(df[col].dtype),
+                    )
+                    for col in batch
+                ]
+
+        tasks = [throttled_get_dictionary_batch(batch) for batch in column_batches]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Filter out any exceptions and flatten results
+        dictionary: list[DataDictionaryColumn] = []
+        for result in results:
+            if isinstance(result, BaseException):
+                logger.error(f"Task failed with error: {str(result)}")
+                continue
+            dictionary.extend(result)
 
         logger.info(
             f"Created dictionary with {len(dictionary)} entries for dataset {dataset.name}"

@@ -57,7 +57,7 @@ Codespace users can **skip steps 1 and 2**. For local development, follow all of
    OPENAI_API_BASE=...  # e.g. https://your_org.openai.azure.com/
    OPENAI_API_DEPLOYMENT_ID=...  # e.g. gpt-4o
    PULUMI_CONFIG_PASSPHRASE=...  # Required. Choose your own alphanumeric passphrase to be used for encrypting pulumi config
-   FRONTEND_TYPE=...  # Optional. Default is "streamlit". Set to "react" to use React frontend
+   FRONTEND_TYPE=...  # Optional. Default is "react", set to "streamlit" to use Streamlit frontend
    ```
    Use the following resources to locate the required credentials:
    - **DataRobot API Token**: Refer to the *Create a DataRobot API Key* section of the [DataRobot API Quickstart docs](https://docs.datarobot.com/en/docs/api/api-quickstart/index.html#create-a-datarobot-api-key).

@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.2.00] - 2025-06-16
+
+### Fixed
+
+- Support separate google creds for vertexAI and BQ
+- New google model name in credentials check
+- Data dictionary generation timeout
+- Data dictionary generation didn't return partial results
+- Analyst dataset incorrectly inferred schema at read time
+- Fix rare DR Catalog ingest issue
+
+### Changed
+
+- Renamed "Save chat" to "Export chat"
+
+### Added
+
+- Persistent storage functionality
 
 ## [0.1.14] - 2025-05-30
 

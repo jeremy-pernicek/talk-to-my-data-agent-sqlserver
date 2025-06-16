@@ -214,7 +214,7 @@ export const Chats: React.FC = () => {
         </div>
         <Button variant="ghost" onClick={() => handleDownload(activeChat.id)}>
           <FontAwesomeIcon icon={faFileArrowDown} />
-          <span className="ml-2">Save chat</span>
+          <span className="ml-2">Export chat</span>
         </Button>
         <Button
           variant="ghost"
