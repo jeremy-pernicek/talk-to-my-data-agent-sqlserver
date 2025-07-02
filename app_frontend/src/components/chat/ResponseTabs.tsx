@@ -2,6 +2,7 @@ import React from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { RESPONSE_TABS } from "./constants";
+import { useTranslation } from "react-i18next";
 
 export interface TabState {
   isLoading?: boolean;
@@ -23,6 +24,7 @@ export const ResponseTabs: React.FC<ResponseTabsProps> = ({
   onValueChange,
   tabStates,
 }) => {
+  const { t } = useTranslation();
   const states = tabStates || {
     summary: {
       isLoading: false,
@@ -52,7 +54,7 @@ export const ResponseTabs: React.FC<ResponseTabsProps> = ({
             hasError={states.summary.hasError}
             successTestId="summary-loading-success"
           />
-          Summary
+          {t("Summary")}
         </TabsTrigger>
         <TabsTrigger value={RESPONSE_TABS.INSIGHTS}>
           <LoadingIndicator
@@ -60,7 +62,7 @@ export const ResponseTabs: React.FC<ResponseTabsProps> = ({
             hasError={states.insights.hasError}
             successTestId="insights-loading-success"
           />
-          More insights
+          {t("More insights")}
         </TabsTrigger>
         <TabsTrigger value={RESPONSE_TABS.CODE}>
           <LoadingIndicator
@@ -68,7 +70,7 @@ export const ResponseTabs: React.FC<ResponseTabsProps> = ({
             hasError={states.code.hasError}
             successTestId="code-loading-success"
           />
-          Behind the scenes
+          {t("Behind the scenes")}
         </TabsTrigger>
       </TabsList>
     </Tabs>

@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useRenameChat } from '@/api/chat-messages/hooks';
+import { useTranslation } from '@/i18n';
 
 interface RenameChatModalProps {
     chatId: string;
@@ -24,7 +25,7 @@ export const RenameChatModal = ({ chatId, currentName }: RenameChatModalProps) =
     const [name, setName] = useState(currentName);
     const [open, setOpen] = useState<boolean>(false);
     const { mutate: renameChat, isPending } = useRenameChat();
-
+    const { t } = useTranslation();
     return (
         <Dialog
             defaultOpen={false}
@@ -44,20 +45,20 @@ export const RenameChatModal = ({ chatId, currentName }: RenameChatModalProps) =
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                    <DialogTitle>Rename chat</DialogTitle>
-                    <DialogDescription>Enter a new name for this chat.</DialogDescription>
+                    <DialogTitle>{t('Rename chat')}</DialogTitle>
+                    <DialogDescription>{t('Enter a new name for this chat.')}</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="rename" className="text-right">
-                            Chat name
+                            {t('Chat name')}
                         </Label>
                         <Input
                             id="rename"
                             value={name}
                             onChange={event => setName(event.target.value)}
                             className="col-span-3"
-                            placeholder="Enter a new name for this chat"
+                            placeholder={t('Enter a new name for this chat')}
                             disabled={isPending}
                             onKeyDown={event => {
                                 if (event.key === 'Enter' && name.trim() && name !== currentName) {
@@ -82,7 +83,7 @@ export const RenameChatModal = ({ chatId, currentName }: RenameChatModalProps) =
                             setOpen(false);
                         }}
                     >
-                        Cancel
+                        {t('Cancel')}
                     </Button>
                     <Button
                         onClick={() => {
@@ -99,7 +100,7 @@ export const RenameChatModal = ({ chatId, currentName }: RenameChatModalProps) =
                         }}
                         disabled={isPending || !name.trim() || name === currentName}
                     >
-                        {isPending ? 'Renaming...' : 'Rename'}
+                        {isPending ? t('Renaming...') : t('Rename')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

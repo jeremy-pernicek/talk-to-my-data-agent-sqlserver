@@ -3,7 +3,7 @@ import { UserAvatar } from './Avatars';
 import { Button } from '@/components/ui/button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrash } from '@fortawesome/free-solid-svg-icons/faTrash';
-
+import { useTranslation } from '@/i18n';
 interface MessageHeaderProps {
     avatar?: () => JSX.Element;
     name: string;
@@ -17,6 +17,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({
     date,
     onDelete,
 }) => {
+    const { t } = useTranslation();
     return (
         <div className="self-stretch justify-between items-center gap-1 inline-flex">
             <div className="grow shrink basis-0 h-6 justify-start items-center gap-2 flex">
@@ -33,7 +34,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({
                         e.stopPropagation();
                         onDelete();
                     }}
-                    title="Delete message"
+                    title={t('Delete message')}
                 >
                     <FontAwesomeIcon icon={faTrash} className="h-3.5 w-3.5" />
                 </Button>

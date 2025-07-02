@@ -7,6 +7,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useTranslation } from '@/i18n';
 import { DictionaryTable as DT, DictionaryRow } from '@/api/dictionaries/types';
 import { Input } from '@/components/ui/input';
 
@@ -76,6 +77,7 @@ const EditableCell: React.FC<EditableCellProps> = ({ initialValue, rowIndex, fie
 };
 
 export const DictionaryTable: React.FC<DictionaryTableProps> = ({ data, onUpdateCell }) => {
+    const { t } = useTranslation();
     const handleCellUpdate = (rowIndex: number, field: keyof DictionaryRow, value: string) => {
         if (onUpdateCell) {
             onUpdateCell(rowIndex, field, value);
@@ -86,9 +88,9 @@ export const DictionaryTable: React.FC<DictionaryTableProps> = ({ data, onUpdate
         <Table>
             <TableHeader className="bg-background">
                 <TableRow>
-                    <TableHead className="w-[200px]">Column</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Description</TableHead>
+                    <TableHead className="w-[200px]">{t("Column")}</TableHead>
+                    <TableHead>{t("Type")}</TableHead>
+                    <TableHead>{t("Description")}</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>

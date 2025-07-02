@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPaperPlane } from '@fortawesome/free-solid-svg-icons/faPaperPlane';
 import { usePostMessage, useFetchAllChats } from '@/api/chat-messages/hooks';
 import { useAppState } from '@/state';
+import { useTranslation } from '@/i18n';
 import { DATA_SOURCES } from '@/constants/dataSources';
 
 export const UserPrompt = ({
@@ -15,6 +16,7 @@ export const UserPrompt = ({
     allowSend?: boolean;
     allowedDataSources?: string[];
 }) => {
+    const { t } = useTranslation();
     const { mutate } = usePostMessage();
     const {
         enableChartGeneration,
@@ -59,11 +61,13 @@ export const UserPrompt = ({
             }}
             placeholder={
                 isDisabled
-                    ? 'Please upload and process data using the sidebar before starting the chat'
-                    : 'Ask another question about your datasets.'
+                    ? t(
+                          'Please upload and process data using the sidebar before starting the chat'
+                      )
+                    : t('Ask another question about your datasets.')
             }
             onKeyDown={e => {
-                if (e.key === 'Enter' && allowSend) {
+                if (allowSend && e.key === 'Enter' && !(e.shiftKey || e.altKey)) {
                     sendMessage();
                 }
             }}

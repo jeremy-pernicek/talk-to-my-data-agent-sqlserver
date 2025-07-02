@@ -2,16 +2,20 @@ import React, { Suspense, lazy } from 'react';
 import { CollapsiblePanel } from './CollapsiblePanel';
 import { PlotlyData } from './utils';
 import './PlotPanel.css';
+import { useTranslation } from '@/i18n';
 
 const Plot = lazy(() => {
     return import('react-plotly.js');
 });
 
-const PlotLoading = () => (
-    <div className="flex items-center justify-center p-4 h-[200px]">
-        <div>Loading visualization...</div>
-    </div>
-);
+const PlotLoading = () => {
+    const { t } = useTranslation();
+    return (
+        <div className="flex items-center justify-center p-4 h-[200px]">
+            <div>{t('Loading visualization...')}</div>
+        </div>
+    );
+};
 
 interface PlotPanelProps {
     plotData: {

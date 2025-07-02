@@ -19,6 +19,7 @@ import { CleansedDataTable } from "./CleansedDataTable";
 import { ValueOf } from "@/state/types";
 import { DATA_TABS } from "@/state/constants";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/i18n";
 
 interface DatasetCardDescriptionPanelProps {
   dictionary: DT;
@@ -29,6 +30,7 @@ interface DatasetCardDescriptionPanelProps {
 export const DatasetCardDescriptionPanel: React.FC<
   DatasetCardDescriptionPanelProps
 > = ({ dictionary, isProcessing = true, viewMode = "description" }) => {
+  const { t } = useTranslation();
   const { mutate: deleteDictionary } = useDeleteGeneratedDictionary();
   const { mutate: updateCell } = useUpdateDictionaryCell();
   const { mutate: downloadDictionary, isPending: isDownloading } =
@@ -66,28 +68,28 @@ export const DatasetCardDescriptionPanel: React.FC<
           <div className="flex gap-2 my-1">
             <Badge variant="secondary" className="leading-tight text-sm">
               {isLoadingMetadata
-                ? "Loading..."
-                : `${metadata?.columns?.length || 0} features`}
+                ? t("Loading...")
+                : `${metadata?.columns?.length || 0} ${t("features")}`}
             </Badge>
             <Badge variant="secondary" className="leading-tight text-sm">
               {isLoadingMetadata
-                ? "Loading..."
-                : `${metadata?.row_count?.toLocaleString() || 0} rows`}
+                ? t("Loading...")
+                : `${metadata?.row_count?.toLocaleString() || 0} ${t("rows")}`}
             </Badge>
             <Badge variant="secondary" className="leading-tight text-sm">
-              {isLoadingMetadata ? "Loading..." : size}
+              {isLoadingMetadata ? t("Loading...") : size}
             </Badge>
             <Badge variant="secondary" className="leading-tight text-sm">
-              {metadata?.data_source || "file"}
+              {metadata?.data_source || t("file")}
             </Badge>
             {isProcessing ? (
               <Badge variant="outline" className="leading-tight text-sm">
                 <img
                   src={loader}
-                  alt="processing"
+                  alt={t("processing")}
                   className="mr-2 w-4 h-4 animate-spin"
                 />
-                Processing...
+                {t("Processing...")}
               </Badge>
             ) : (
               <Badge
@@ -96,7 +98,7 @@ export const DatasetCardDescriptionPanel: React.FC<
                 className="leading-tight text-sm"
               >
                 <FontAwesomeIcon className="mr-2 w-4 h-4 " icon={faCheck} />
-                Processed
+                {t("Processed")}
               </Badge>
             )}
           </div>
@@ -106,13 +108,13 @@ export const DatasetCardDescriptionPanel: React.FC<
               onClick={() => {
                 downloadDictionary({ name: dictionary.name });
               }}
-              title="Download dictionary as CSV"
+              title={t("Download dictionary as CSV")}
               disabled={isProcessing || isDownloading}
             >
               {isDownloading ? (
                 <img
                   src={loader}
-                  alt="downloading"
+                  alt={t("downloading")}
                   className="w-4 h-4 animate-spin"
                 />
               ) : (
@@ -124,7 +126,7 @@ export const DatasetCardDescriptionPanel: React.FC<
               onClick={() => {
                 deleteDictionary({ name: dictionary.name });
               }}
-              title="Delete dictionary"
+              title={t("Delete dictionary")}
             >
               <FontAwesomeIcon icon={faTrash} />
             </Button>
@@ -134,7 +136,7 @@ export const DatasetCardDescriptionPanel: React.FC<
       <div className="flex flex-col flex-1 text-lg">
         {isProcessing ? (
           <div className="flex flex-col flex-1 items-center justify-center">
-            Processing the dataset may take a few minutes...
+            {t("Processing the dataset may take a few minutes...")}
           </div>
         ) : (
           <ScrollArea className="mt-4 h-96">

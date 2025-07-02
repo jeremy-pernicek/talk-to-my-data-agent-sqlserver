@@ -2,6 +2,7 @@ import React from 'react';
 import { HeaderSection } from './HeaderSection';
 import { SuggestedQuestionsSection } from './SuggestedQuestionsSection';
 import { MarkdownContent } from './MarkdownContent';
+import { useTranslation } from '@/i18n';
 
 interface InsightsTabContentProps {
     additionalInsights?: string | null;
@@ -14,13 +15,15 @@ export const InsightsTabContent: React.FC<InsightsTabContentProps> = ({
     followUpQuestions,
     chatId,
 }) => {
+    const { t } = useTranslation();
+    
     return (
         <div>
             {/* <InfoText>
         DataRobot generates additional content based on your original question.
       </InfoText> */}
             {additionalInsights && (
-                <HeaderSection title="Data insights">
+                <HeaderSection title={t("Data insights")}>
                     <MarkdownContent content={additionalInsights} />
                 </HeaderSection>
             )}

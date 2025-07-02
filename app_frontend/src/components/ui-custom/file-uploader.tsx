@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFolder } from '@fortawesome/free-solid-svg-icons/faFolder';
 import { XIcon, FileIcon } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-
+import { useTranslation } from '@/i18n';
 interface FileUploaderProps {
     maxSize?: number;
     accept?: { [key: string]: string[] };
@@ -19,7 +19,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
     onFilesChange,
 }) => {
     const [files, setFiles] = useState<File[]>([]);
-
+    const { t } = useTranslation();
     const onDrop = React.useCallback(
         (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
             const newFiles = acceptedFiles.map(file =>
@@ -60,8 +60,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
                     >
                         <input {...getInputProps()} />
                         <p className="text-center p-6">
-                            Drag and drop from your desktop, or <FontAwesomeIcon icon={faFolder} />{' '}
-                            <strong>browse local files</strong>
+                            {t("Drag and drop from your desktop, or")} <FontAwesomeIcon icon={faFolder} />{' '}
+                            <strong>{t("browse local files")}</strong>
                         </p>
                         <div>
                             {files.map((file, index) => (

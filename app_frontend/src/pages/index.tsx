@@ -1,11 +1,15 @@
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { ROUTES } from './routes';
 import { Suspense, lazy } from 'react';
+import { useTranslation } from '@/i18n';
 
 const Data = lazy(() => import('./Data').then(module => ({ default: module.Data })));
 const Chats = lazy(() => import('./Chats').then(module => ({ default: module.Chats })));
 
-const Loading = () => <div className="flex items-center justify-center h-full">Loading...</div>;
+const Loading = () => {
+    const { t } = useTranslation();
+    return <div className="flex items-center justify-center h-full">{t('Loading...')}</div>;
+};
 
 const Pages = () => {
     return (

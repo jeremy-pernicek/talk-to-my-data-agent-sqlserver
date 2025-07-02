@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { MessageHeader } from './MessageHeader';
 import { formatMessageDate } from './utils';
 import { useDeleteMessage } from '@/api/chat-messages/hooks';
-
+import { useTranslation } from '@/i18n';
 interface UserMessageProps {
     id?: string;
     date?: string;
@@ -22,7 +22,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
 }) => {
     const ref = useRef<HTMLDivElement>(null);
     const { mutate: deleteMessage } = useDeleteMessage();
-
+    const { t } = useTranslation();
     useEffect(() => {
         ref.current?.scrollIntoView(false);
     });
@@ -50,8 +50,10 @@ export const UserMessage: React.FC<UserMessageProps> = ({
             className="p-3 bg-card rounded flex-col justify-start items-start gap-3 flex mb-2.5 mr-2"
             ref={ref}
         >
-            <MessageHeader name={'You'} date={displayDate} onDelete={handleDelete} />
-            <div className="self-stretch text-sm font-normal leading-tight">{message}</div>
+            <MessageHeader name={t('You')} date={displayDate} onDelete={handleDelete} />
+            <div className="self-stretch text-sm font-normal leading-tight whitespace-pre-line">
+                {message}
+            </div>
         </div>
     );
 };

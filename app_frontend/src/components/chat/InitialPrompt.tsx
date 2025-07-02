@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPaperPlane } from "@fortawesome/free-solid-svg-icons/faPaperPlane";
 import chatMidnight from "@/assets/chat-midnight.svg";
 import { usePostMessage, useFetchAllChats } from "@/api/chat-messages/hooks";
+import { useTranslation } from "@/i18n";
 import { useAppState } from "@/state/hooks";
 import { DATA_SOURCES } from "@/constants/dataSources";
 
@@ -14,6 +15,7 @@ export const InitialPrompt = ({
   allowedDataSources?: string[];
   chatId?: string;
 }) => {
+  const { t } = useTranslation();
   const {
     enableChartGeneration,
     enableBusinessInsights,
@@ -56,13 +58,13 @@ export const InitialPrompt = ({
           <img src={chatMidnight} alt="" />
           <h4 className="mb-2 mt-4">
             <strong className=" text-center font-semibold">
-              Type a question about your dataset
+              {t("Type a question about your dataset")}
             </strong>
           </h4>
           <p className="text-center mb-10">
-            Ask specific questions about your datasets to get insights, generate
-            visualizations, and discover patterns. Include column names and the
-            kind of analysis you're looking for to get more accurate results.
+            {t(
+              "Ask specific questions about your datasets to get insights, generate visualizations, and discover patterns. Include column names and the kind of analysis you're looking for to get more accurate results."
+            )}
           </p>
           <PromptInput
             icon={FontAwesomeIcon}
@@ -77,15 +79,17 @@ export const InitialPrompt = ({
             data-testid="initial-prompt-input"
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !(e.shiftKey || e.altKey)) {
                 sendMessage();
               }
             }}
             value={message}
             placeholder={
               isDisabled
-                ? "Please upload and process data using the sidebar before starting the chat"
-                : "Ask another question about your datasets."
+                ? t(
+                    "Please upload and process data using the sidebar before starting the chat"
+                  )
+                : t("Ask another question about your datasets.")
             }
           />
         </div>

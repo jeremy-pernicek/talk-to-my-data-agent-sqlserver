@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table';
 import loader from '@/assets/loader.svg';
 import { Loading } from '@/components/ui-custom/loading';
+import { useTranslation } from '@/i18n';
 
 interface CleansedDataTableProps {
     datasetName: string;
@@ -22,6 +23,7 @@ export const CleansedDataTable: React.FC<CleansedDataTableProps> = ({
     rowsPerPage = 50,
 }) => {
     const { ref, inView } = useInView();
+    const { t } = useTranslation();
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status, isError, error } =
         useInfiniteCleansedDataset(datasetName, rowsPerPage);
@@ -55,7 +57,7 @@ export const CleansedDataTable: React.FC<CleansedDataTableProps> = ({
     if (isError) {
         return (
             <div className="flex flex-col flex-1 items-center justify-center h-96">
-                Error loading data: {String(error)}
+                {t("Error loading data")}: {String(error)}
             </div>
         );
     }
@@ -63,7 +65,7 @@ export const CleansedDataTable: React.FC<CleansedDataTableProps> = ({
     if (allRows.length === 0) {
         return (
             <div className="flex flex-col flex-1 items-center justify-center h-96">
-                No data available for this dataset.
+                {t("No data available for this dataset.")}
             </div>
         );
     }
@@ -97,14 +99,14 @@ export const CleansedDataTable: React.FC<CleansedDataTableProps> = ({
             <div ref={ref} className="w-full text-center p-4">
                 {isFetchingNextPage ? (
                     <div className="flex justify-center items-center">
-                        <img src={loader} alt="processing" className="mr-2 w-4 h-4 animate-spin" />
-                        <span className="ml-2">Loading more...</span>
+                        <img src={loader} alt={t("processing")} className="mr-2 w-4 h-4 animate-spin" />
+                        <span className="ml-2">{t("Loading more...")}</span>
                     </div>
                 ) : hasNextPage ? (
                     <div className="h-10" />
                 ) : (
                     <div className="text-muted-foreground">
-                        {allRows.length > 0 ? 'End of data' : 'No data available'}
+                        {allRows.length > 0 ? t("End of data") : t("No data available")}
                     </div>
                 )}
             </div>

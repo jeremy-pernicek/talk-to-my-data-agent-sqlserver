@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrash } from "@fortawesome/free-solid-svg-icons/faTrash";
 import { faFileArrowDown } from "@fortawesome/free-solid-svg-icons/faFileArrowDown";
+import { useTranslation } from '@/i18n';
 import {
   useFetchAllMessages,
   useDeleteChat,
@@ -29,9 +30,10 @@ const ResponseMessage = lazy(() =>
   }))
 );
 
-const ComponentLoading = () => (
-  <div className="p-4 text-sm">Loading component...</div>
-);
+const ComponentLoading = () => {
+  const { t } = useTranslation(); 
+  return <div className="p-4 text-sm">{t("Loading component...")}</div>;
+};
 
 const ChatMessageItem = ({
   message,
@@ -81,6 +83,7 @@ const ChatMessageItem = ({
 };
 
 export const Chats: React.FC = () => {
+  const { t } = useTranslation();
   const { chatId } = useParams<{ chatId?: string }>();
   const navigate = useNavigate();
 
@@ -201,7 +204,7 @@ export const Chats: React.FC = () => {
     return (
       <>
         <h2 className="text-xl flex-1">
-          <strong>{activeChat.name || "New Chat"}</strong>
+          <strong>{activeChat.name || t("New Chat")}</strong>
           <RenameChatModal
             chatId={activeChat.id}
             currentName={activeChat.name}
@@ -214,7 +217,7 @@ export const Chats: React.FC = () => {
         </div>
         <Button variant="ghost" onClick={() => handleDownload(activeChat.id)}>
           <FontAwesomeIcon icon={faFileArrowDown} />
-          <span className="ml-2">Export chat</span>
+          <span className="ml-2">{t("Export chat")}</span>
         </Button>
         <Button
           variant="ghost"
@@ -222,7 +225,7 @@ export const Chats: React.FC = () => {
           testId="delete-all-chats-button"
         >
           <FontAwesomeIcon icon={faTrash} />
-          <span className="ml-2">Delete chat</span>
+          <span className="ml-2">{t("Delete chat")}</span>
         </Button>
       </>
     );

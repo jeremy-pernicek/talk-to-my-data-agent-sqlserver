@@ -2,6 +2,7 @@ import React from 'react';
 import { IDataset as DatasetType } from '@/api/chat-messages/types';
 import { CollapsiblePanel } from './CollapsiblePanel';
 import { AnalystDatasetTable } from './AnalystDatasetTable';
+import { useTranslation } from '@/i18n';
 // @ts-expect-error ???
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 // @ts-expect-error ???
@@ -14,18 +15,19 @@ interface CodeTabContentProps {
 }
 
 export const CodeTabContent: React.FC<CodeTabContentProps> = ({ dataset, code }) => {
+    const { t } = useTranslation();
     return (
         <div className="flex flex-col gap-2.5">
             {/* <InfoText>
         DataRobot generates additional content based on your original question.
       </InfoText> */}
             {dataset && (
-                <CollapsiblePanel header="Dataset">
+                <CollapsiblePanel header={t('Dataset')}>
                     <AnalystDatasetTable records={dataset?.data_records} />
                 </CollapsiblePanel>
             )}
             {code && (
-                <CollapsiblePanel header="Code">
+                <CollapsiblePanel header={t('Code')}>
                     <div className="markdown-content">
                         <SyntaxHighlighter
                             language="python"

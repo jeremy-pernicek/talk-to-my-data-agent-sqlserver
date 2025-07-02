@@ -19,7 +19,7 @@ describe('Button Component', () => {
     expect(button).toHaveClass('bg-destructive');
     
     rerender(<Button variant="outline">Outline</Button>);
-    expect(screen.getByRole('button', { name: /outline/i })).toHaveClass('border-input');
+    expect(screen.getByRole('button', { name: /outline/i })).toHaveClass('border-button');
     
     rerender(<Button variant="secondary">Secondary</Button>);
     expect(screen.getByRole('button', { name: /secondary/i })).toHaveClass('bg-secondary');

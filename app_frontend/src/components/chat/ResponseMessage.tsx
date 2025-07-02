@@ -17,7 +17,7 @@ import { CodeTabContent } from './CodeTabContent';
 import { ErrorPanel } from './ErrorPanel';
 import { RESPONSE_TABS } from './constants';
 import { formatMessageDate } from './utils';
-
+import { useTranslation } from '@/i18n';
 interface ResponseMessageProps {
     chatId?: string;
     date?: string;
@@ -63,7 +63,7 @@ export const ResponseMessage: React.FC<ResponseMessageProps> = ({
     isLoading = false,
 }) => {
     const [activeTab, setActiveTab] = useState(RESPONSE_TABS.SUMMARY);
-
+    const { t } = useTranslation();
     const {
         displayDate,
         enhancedUserMessage,
@@ -155,7 +155,7 @@ export const ResponseMessage: React.FC<ResponseMessageProps> = ({
 
     return (
         <MessageContainer>
-            <MessageHeader avatar={DataRobotAvatar} name="DataRobot" date={displayDate} />
+            <MessageHeader avatar={DataRobotAvatar} name={t('DataRobot')} date={displayDate} />
 
             {isLoading ? (
                 <Loading />

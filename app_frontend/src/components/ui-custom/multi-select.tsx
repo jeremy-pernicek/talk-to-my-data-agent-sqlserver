@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { CheckIcon, ChevronDown, XIcon } from "lucide-react";
-
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -78,6 +78,7 @@ export const MultiSelect = React.forwardRef<
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const [selectedValues, setSelectedValues] =
       React.useState<string[]>(defaultValue);
     const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
@@ -213,13 +214,13 @@ export const MultiSelect = React.forwardRef<
         >
           <Command>
             <CommandInput
-              placeholder="Search..."
+              placeholder={t("Search...")}
               onKeyDown={handleInputKeyDown}
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
             />
             <CommandList className="max-w-[800px]">
-              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandEmpty>{t("No results found.")}</CommandEmpty>
               <CommandGroup>
                 {options.map((option) => {
                   const isSelected = selectedValues.includes(option.value);
@@ -260,7 +261,7 @@ export const MultiSelect = React.forwardRef<
                       onSelect={handleClear}
                       className="flex-1 justify-center cursor-pointer"
                     >
-                      Clear
+                      {t("Clear")}
                     </CommandItem>
                     <Separator
                       orientation="vertical"
@@ -273,7 +274,7 @@ export const MultiSelect = React.forwardRef<
                   onSelect={() => setIsPopoverOpen(false)}
                   className="flex-1 justify-center cursor-pointer max-w-full"
                 >
-                  Close
+                  {t("Close")}
                 </CommandItem>
               </div>
             </CommandGroup>

@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { useTranslation } from '@/i18n';
+
 import {
   Dialog,
   DialogContent,
@@ -38,6 +40,7 @@ export const AddDataModal = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const { mutate, progress } = useFileUploadMutation({
     onSuccess: () => {
@@ -48,7 +51,7 @@ export const AddDataModal = () => {
     onError: (error: UploadError | AxiosError) => {
       setIsPending(false);
       console.error(error);
-      setError(error.message || "An error occurred while uploading files");
+      setError(error.message || t("An error occurred while uploading files"));
     },
   });
 
@@ -75,12 +78,12 @@ export const AddDataModal = () => {
     >
       <DialogTrigger asChild>
         <Button variant="outline" testId="add-data-button">
-          <FontAwesomeIcon icon={faPlus} /> Add Data
+          <FontAwesomeIcon icon={faPlus} /> {t('Add Data')}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[800px]">
         <DialogHeader>
-          <DialogTitle>Add Data</DialogTitle>
+          <DialogTitle>{t('Add Data')}</DialogTitle>
           <Separator className="border-t" />
           <DialogDescription></DialogDescription>
         </DialogHeader>
@@ -90,15 +93,15 @@ export const AddDataModal = () => {
           <>
             <div className="h-10 flex-col justify-start items-start inline-flex">
               <div className="text-primary text-sm font-semibold leading-normal">
-                Local files
+                {t('Local files')}
               </div>
               <div className="text-muted-foreground text-sm font-normal leading-normal">
-                Select one or more CSV, XLSX, XLS files, up to 200MB.
+                {t('Select one or more CSV, XLSX, XLS files, up to 200MB.')}
               </div>
             </div>
             <FileUploader onFilesChange={setFiles} progress={progress} />
-            <h4>Data Registry</h4>
-            <h6>Select one or more catalog items</h6>
+            <h4>{t('Data Registry')}</h4>
+            <h6>{t('Select one or more catalog items')}</h6>
             <MultiSelect
               options={
                 data
@@ -111,7 +114,7 @@ export const AddDataModal = () => {
               }
               onValueChange={setSelectedDatasets}
               defaultValue={selectedDatasets}
-              placeholder="Select one or more items."
+              placeholder={t('Select one or more items.')}
               variant="inverted"
               modalPopover
               animation={2}
@@ -129,8 +132,8 @@ export const AddDataModal = () => {
 
         {dataSource == DATA_SOURCES.DATABASE && (
           <>
-            <h4>Databases</h4>
-            <h6>Select one or more tables</h6>
+            <h4>{t('Databases')}</h4>
+            <h6>{t('Select one or more tables')}</h6>
             <MultiSelect
               options={
                 dbTables
@@ -142,7 +145,7 @@ export const AddDataModal = () => {
               }
               onValueChange={setSelectedTables}
               defaultValue={selectedTables}
-              placeholder="Select one or more items."
+              placeholder={t('Select one or more items.')}
               variant="inverted"
               testId="database-table-select"
               modalPopover
@@ -154,7 +157,7 @@ export const AddDataModal = () => {
         <Separator className="border-t mt-6" />
         <DialogFooter>
           <Button variant={"ghost"} onClick={() => setIsOpen(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button
             type="submit"
@@ -176,11 +179,11 @@ export const AddDataModal = () => {
             {isPending && (
               <img
                 src={loader}
-                alt="downloading"
+                alt={t("downloading")}
                 className="w-4 h-4 animate-spin"
               />
             )}
-            Save selections
+            {t('Save selections')}  
           </Button>
         </DialogFooter>
       </DialogContent>

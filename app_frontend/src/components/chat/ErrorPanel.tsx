@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExclamationTriangle } from '@fortawesome/free-solid-svg-icons/faExclamationTriangle';
 import { CollapsiblePanel } from './CollapsiblePanel';
 import { ICodeExecutionError } from '@/api/chat-messages/types';
+import { useTranslation } from '@/i18n';
 // @ts-expect-error ???
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 // @ts-expect-error ???
@@ -19,18 +20,18 @@ export const ErrorPanel: React.FC<ErrorPanelProps> = ({
     errors,
     componentType = 'Component',
 }) => {
+    const { t } = useTranslation();
     if (!errors || errors.length === 0) return null;
-
     return (
         <>
             {attempts && (
-                <h2 className="mb-2">Failed to generate valid code after {attempts} attempts</h2>
+                <h2 className="mb-2">{t('Failed to generate valid code after {attempts} attempts', { attempts })}</h2>
             )}
             {errors.map(e => {
                 const { code, exception_str, stderr, stdout, traceback_str } = e;
                 const hasDetails = !!(code || stderr || stdout || traceback_str);
                 const error = `${componentType} Error: ${
-                    exception_str || 'An error occurred during execution'
+                    exception_str || t('An error occurred during execution')
                 }`;
 
                 return (
@@ -50,7 +51,7 @@ export const ErrorPanel: React.FC<ErrorPanelProps> = ({
                                 {code && (
                                     <div>
                                         <h4 className="font-semibold mb-2">
-                                            Code that caused the error:
+                                            {t('Code that caused the error:')}
                                         </h4>
                                         <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
                                             <SyntaxHighlighter
@@ -69,7 +70,7 @@ export const ErrorPanel: React.FC<ErrorPanelProps> = ({
 
                                 {traceback_str && (
                                     <div>
-                                        <h4 className="font-semibold mb-2">Traceback:</h4>
+                                        <h4 className="font-semibold mb-2">{t('Traceback:')}</h4>
                                         <div className="overflow-x-auto overflow-y-auto max-h-[300px]">
                                             <SyntaxHighlighter
                                                 language="python"
@@ -86,7 +87,7 @@ export const ErrorPanel: React.FC<ErrorPanelProps> = ({
 
                                 {stdout && (
                                     <div>
-                                        <h4 className="font-semibold mb-2">Standard Output:</h4>
+                                        <h4 className="font-semibold mb-2">{t('Standard Output:')}</h4>
                                         <div className="max-h-[300px] overflow-x-auto overflow-y-auto">
                                             <pre className="p-2 rounded whitespace-pre">
                                                 {stdout}
@@ -97,7 +98,7 @@ export const ErrorPanel: React.FC<ErrorPanelProps> = ({
 
                                 {stderr && (
                                     <div>
-                                        <h4 className="font-semibold mb-2">Standard Error:</h4>
+                                        <h4 className="font-semibold mb-2">{t('Standard Error:')}</h4>
                                         <div className="max-h-[300px] overflow-x-auto overflow-y-auto max-w-full">
                                             <pre className="p-2 rounded whitespace-pre text-destructive">
                                                 {stderr}
@@ -107,7 +108,7 @@ export const ErrorPanel: React.FC<ErrorPanelProps> = ({
                                 )}
 
                                 {!hasDetails && (
-                                    <p className="italic">No additional error details available.</p>
+                                    <p className="italic">{t('No additional error details available.')}</p>
                                 )}
                             </div>
                         </CollapsiblePanel>

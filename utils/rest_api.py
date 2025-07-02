@@ -957,7 +957,7 @@ async def create_chat_message(
 
         # Create valid messages for the chat request
         valid_messages: list[ChatCompletionMessageParam] = [
-            user_message.to_openai_message_param()
+            msg.to_openai_message_param() for msg in messages if msg.content.strip()
         ]
 
         # Add the current message

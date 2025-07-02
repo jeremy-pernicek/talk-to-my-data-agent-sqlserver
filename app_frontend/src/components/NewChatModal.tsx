@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/i18n';
 import {
     Dialog,
     DialogContent,
@@ -17,13 +18,20 @@ import { useCreateChat } from '@/api/chat-messages/hooks';
 import { useNavigate } from 'react-router-dom';
 import { generateChatRoute } from '@/pages/routes';
 import { useAppState } from '@/state/hooks';
+import { cn } from '@/lib/utils';
 
-export const NewChatModal = () => {
+export type NewChatModalType = {
+    highlight: boolean;
+};
+
+export const NewChatModal = ({ highlight }: NewChatModalType) => {
     const [name, setName] = useState('');
     const [open, setOpen] = useState<boolean>(false);
     const { mutate: createChat, isPending } = useCreateChat();
     const navigate = useNavigate();
     const { dataSource } = useAppState();
+    const { t } = useTranslation();
+
     return (
         <Dialog
             defaultOpen={false}
@@ -34,28 +42,33 @@ export const NewChatModal = () => {
             }}
         >
             <DialogTrigger asChild>
-                <Button variant="outline">
-                    <FontAwesomeIcon icon={faPlus} /> New chat
+                <Button
+                    className={cn(
+                        highlight && 'animate-[var(--animation-blink-border-and-shadow)]'
+                    )}
+                    variant="outline"
+                >
+                    <FontAwesomeIcon icon={faPlus} /> {t('New chat')}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                    <DialogTitle>Create new chat</DialogTitle>
+                    <DialogTitle>{t('Create new chat')}</DialogTitle>
                     <DialogDescription>
-                        Creating a new chat does not affect any of your existing questions.
+                        {t('Creating a new chat does not affect any of your existing questions.')}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right">
-                            Chat name
+                            {t('Chat name')}
                         </Label>
                         <Input
                             id="name"
                             value={name}
                             onChange={event => setName(event.target.value)}
                             className="col-span-3"
-                            placeholder="Enter a name for your chat"
+                            placeholder={t('Enter a name for your chat')}
                             disabled={isPending}
                             onKeyDown={event => {
                                 if (event.key === 'Enter' && name.trim()) {
@@ -81,7 +94,7 @@ export const NewChatModal = () => {
                             setOpen(false);
                         }}
                     >
-                        Cancel
+                        {t('Cancel')}
                     </Button>
                     <Button
                         onClick={() => {
@@ -99,7 +112,7 @@ export const NewChatModal = () => {
                         }}
                         disabled={isPending || !name.trim()}
                     >
-                        {isPending ? 'Creating...' : 'Create chat'}
+                        {isPending ? t('Creating...') : t('Create chat')}
                     </Button>
                 </DialogFooter>
             </DialogContent>
