@@ -1,3 +1,5 @@
+import i18n from '@/i18n';
+
 export interface PlotlyData {
     [key: string]: unknown;
 }
@@ -34,7 +36,7 @@ export const formatMessageDate = (timestamp?: string): string => {
     try {
         const date = new Date(timestamp);
 
-        return date.toLocaleString('en-US', {
+        return date.toLocaleString(i18n.language, {
             month: 'long',
             day: 'numeric',
             year: 'numeric',

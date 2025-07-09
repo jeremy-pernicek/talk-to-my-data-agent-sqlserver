@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { DictionaryTable as DT } from "@/api/dictionaries/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ import { DATA_TABS } from "@/state/constants";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/i18n";
 
+import { ConfirmDialog } from "../ui-custom/confirm-dialog";
+
 interface DatasetCardDescriptionPanelProps {
   dictionary: DT;
   isProcessing?: boolean;
@@ -31,7 +33,12 @@ export const DatasetCardDescriptionPanel: React.FC<
   DatasetCardDescriptionPanelProps
 > = ({ dictionary, isProcessing = true, viewMode = "description" }) => {
   const { t } = useTranslation();
-  const { mutate: deleteDictionary } = useDeleteGeneratedDictionary();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const { mutate: deleteDictionary, isPending: isDeleting } = useDeleteGeneratedDictionary({
+    onSuccess: () => {
+      setIsDeleteDialogOpen(false);
+    },
+  });
   const { mutate: updateCell } = useUpdateDictionaryCell();
   const { mutate: downloadDictionary, isPending: isDownloading } =
     useDownloadDictionary();
@@ -60,6 +67,17 @@ export const DatasetCardDescriptionPanel: React.FC<
         "h-[400px]": isProcessing,
       })}
     >
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title={t("Delete dictionary")}
+        confirmText={t("Delete")}
+        cancelText={t("Cancel")}
+        variant="destructive"
+        isLoading={isDeleting}
+        description={t("Are you sure you want to delete this dictionary?")}
+        onConfirm={() => deleteDictionary({ name: dictionary.name })}
+      />
       <div>
         <h3 className="text-lg">
           <strong>{dictionary.name}</strong>
@@ -124,7 +142,7 @@ export const DatasetCardDescriptionPanel: React.FC<
             <Button
               variant="link"
               onClick={() => {
-                deleteDictionary({ name: dictionary.name });
+                setIsDeleteDialogOpen(true);
               }}
               title={t("Delete dictionary")}
             >

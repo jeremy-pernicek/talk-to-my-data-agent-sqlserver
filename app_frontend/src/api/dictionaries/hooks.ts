@@ -19,15 +19,20 @@ export const useGeneratedDictionaries = () => {
     return queryResult;
 };
 
-export const useDeleteGeneratedDictionary = () => {
+export const useDeleteGeneratedDictionary = ({ onSuccess }: { onSuccess: () => void }) => {
     const queryClient = useQueryClient();
     const mutation = useMutation({
         mutationFn: ({ name }: { name: string }) => deleteGeneratedDictionary({ name }),
         onMutate: async () => {
             await queryClient.cancelQueries({ queryKey: dictionaryKeys.all });
         },
-        onSuccess: () => {
+        onSuccess: (data, { name }) => {
+            queryClient.setQueryData<DictionaryTable[]>(dictionaryKeys.all, oldData => {
+                if (!oldData) return [];
+                return oldData.filter(d => d.name !== name);
+            });
             queryClient.invalidateQueries({ queryKey: dictionaryKeys.all });
+            onSuccess?.();
         },
     });
 

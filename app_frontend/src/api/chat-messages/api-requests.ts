@@ -1,5 +1,6 @@
 import apiClient from '../apiClient';
 import { IChat, IChatMessage } from './types';
+import i18n, { t } from 'i18next';
 
 export interface IGetMessagesParams {
     limit: number;
@@ -50,7 +51,20 @@ export async function postMessage({
 
     // If no chatId is provided, create a new chat with the message
     if (!chatId) {
-        const { data } = await apiClient.post<IChatCreated>('/v1/chats/messages', payload, {
+        const now = new Date();
+        const formattedDate = new Intl.DateTimeFormat(i18n.language, {
+          month: 'long',
+          day: 'numeric'
+        }).format(now);
+        
+        const formattedTime = new Intl.DateTimeFormat(i18n.language, {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }).format(now);
+
+        const chatName = t('Chat {{formattedDate}} {{formattedTime}}', { formattedDate, formattedTime });
+        const { data } = await apiClient.post<IChatCreated>('/v1/chats/messages', {...payload, chatName }, {
             signal,
         });
         return data;

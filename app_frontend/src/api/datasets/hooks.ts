@@ -123,7 +123,7 @@ export const useFileUploadMutation = ({
     return { ...mutation, progress };
 };
 
-export const useDeleteAllDatasets = () => {
+export const useDeleteAllDatasets = ({ onSuccess }: { onSuccess?: () => void }) => {
     const queryClient = useQueryClient();
     const mutation = useMutation({
         mutationFn: () => deleteAllDatasets(),
@@ -131,7 +131,9 @@ export const useDeleteAllDatasets = () => {
             await queryClient.cancelQueries({ queryKey: dictionaryKeys.all });
         },
         onSuccess: () => {
+            queryClient.setQueryData<DictionaryTable[]>(dictionaryKeys.all, []);
             queryClient.invalidateQueries({ queryKey: dictionaryKeys.all });
+            onSuccess?.();
         },
     });
     return mutation;

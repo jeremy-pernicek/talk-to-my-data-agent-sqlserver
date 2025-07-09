@@ -64,8 +64,10 @@ export const ResponseMessage: React.FC<ResponseMessageProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState(RESPONSE_TABS.SUMMARY);
     const { t } = useTranslation();
+
+    const displayDate = message?.created_at ? formatMessageDate(message.created_at) : date || '';
+
     const {
-        displayDate,
         enhancedUserMessage,
         bottomLine,
         additionalInsights,
@@ -80,10 +82,6 @@ export const ResponseMessage: React.FC<ResponseMessageProps> = ({
         businessErrors,
         analysisAttempts,
     } = useMemo(() => {
-        const displayDate = message?.created_at
-            ? formatMessageDate(message.created_at)
-            : date || '';
-
         const messageComponent = message?.components?.find(isMessageComponent);
         const businessComponent = message?.components?.find(isBusinessComponent);
         const chartsComponent = message?.components?.find(isChartsComponent);

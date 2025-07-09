@@ -112,15 +112,21 @@ export const usePostMessage = () => {
                     ]
                 );
 
-                // Update the chats list cache with the new chat
-                queryClient.setQueryData<IChat[]>(messageKeys.chats, (oldData = []) => [
-                    {
-                        id: data.id,
-                        name: 'New Chat',
-                        created_at: new Date().toISOString(),
-                    } as IChat,
-                    ...oldData,
-                ]);
+                queryClient.setQueryData<IChat[]>(messageKeys.chats, (oldData = []) => {
+                    const chatExists = oldData.some(chat => chat.id === data.id);
+                    if (chatExists) {
+                        return oldData;
+                    }
+                    
+                    return [
+                        {
+                            id: data.id,
+                            name: data.name,
+                            created_at: new Date().toISOString(),
+                        } as IChat,
+                        ...oldData,
+                    ];
+                });
 
                 // Navigate to the new chat
                 navigate(generateChatRoute(data.id));
@@ -235,7 +241,7 @@ export interface IDeleteChatParams {
     chatId: string;
 }
 
-export const useDeleteChat = () => {
+export const useDeleteChat = ({ onSuccess }: { onSuccess?: () => void }) => {
     const queryClient = useQueryClient();
     const mutation = useMutation<void, Error, IDeleteChatParams, { previousChats: IChat[] }>({
         mutationFn: ({ chatId }) => deleteChat({ chatId }),
@@ -262,6 +268,7 @@ export const useDeleteChat = () => {
             queryClient.invalidateQueries({
                 queryKey: messageKeys.messages(variables.chatId),
             });
+            onSuccess?.();
         },
     });
 

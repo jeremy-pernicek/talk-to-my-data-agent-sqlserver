@@ -21,7 +21,7 @@ export const Data: React.FC = () => {
     return (
         <div className="p-6">
             <h2 className="text-xl">
-                <strong>{t("Data")}</strong>
+                <strong>{t('Data')}</strong>
             </h2>
             <div className="flex justify-between gap-2">
                 <div className="flex gap-2 items-center">
@@ -32,9 +32,7 @@ export const Data: React.FC = () => {
                     />
                     <SearchControl />
                 </div>
-                <div className="flex items-center">
-                    <ClearDatasetsButton />
-                </div>
+                <div className="flex items-center">{!!data?.length && <ClearDatasetsButton />}</div>
             </div>
             <Separator className="my-4 border-t" />
             {status === 'pending' ? (

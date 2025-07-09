@@ -21,7 +21,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
     responseId,
 }) => {
     const ref = useRef<HTMLDivElement>(null);
-    const { mutate: deleteMessage } = useDeleteMessage();
+    const { mutate: deleteMessage, isPending } = useDeleteMessage();
     const { t } = useTranslation();
     useEffect(() => {
         ref.current?.scrollIntoView(false);
@@ -50,7 +50,7 @@ export const UserMessage: React.FC<UserMessageProps> = ({
             className="p-3 bg-card rounded flex-col justify-start items-start gap-3 flex mb-2.5 mr-2"
             ref={ref}
         >
-            <MessageHeader name={t('You')} date={displayDate} onDelete={handleDelete} />
+            <MessageHeader name={t('You')} date={displayDate} onDelete={handleDelete} isLoading={isPending} />
             <div className="self-stretch text-sm font-normal leading-tight whitespace-pre-line">
                 {message}
             </div>
