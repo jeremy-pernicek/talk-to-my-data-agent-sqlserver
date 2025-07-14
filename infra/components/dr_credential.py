@@ -275,6 +275,7 @@ def get_credential_runtime_parameter_values(
                 value=rtp_dict["value"],
             )
         credential_runtime_parameter_values.append(rtp)
+
     return credential_runtime_parameter_values
 
 

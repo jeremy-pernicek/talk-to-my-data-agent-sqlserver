@@ -1,4 +1,6 @@
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
+import { useTranslation } from '@/i18n';
+
 import {
   Dialog,
   DialogContent,
@@ -7,28 +9,26 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus } from "@fortawesome/free-solid-svg-icons/faPlus";
-import { DataSourceSelector } from "./DataSourceSelector";
-import { DATA_SOURCES } from "@/constants/dataSources";
-import { MultiSelect } from "@/components/ui-custom/multi-select";
-import { useState } from "react";
-import { FileUploader } from "./ui-custom/file-uploader";
-import { useFetchAllDatasets } from "@/api/datasets/hooks";
-import {
-  useGetDatabaseTables,
-  useLoadFromDatabaseMutation,
-} from "@/api/database/hooks";
-import { useFileUploadMutation, UploadError } from "@/api/datasets/hooks";
-import { Separator } from "@radix-ui/react-separator";
-import loader from "@/assets/loader.svg";
-import { useAppState } from "@/state/hooks";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AxiosError } from "axios";
-import { TruncatedText } from "./ui-custom/truncated-text";
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlus } from '@fortawesome/free-solid-svg-icons/faPlus';
+import { DataSourceSelector } from './DataSourceSelector';
+import { DATA_SOURCES } from '@/constants/dataSources';
+import { MultiSelect } from '@/components/ui-custom/multi-select';
+import { useState } from 'react';
+import { FileUploader } from './ui-custom/file-uploader';
+import { useFetchAllDatasets } from '@/api/datasets/hooks';
+import { useGetDatabaseTables, useLoadFromDatabaseMutation } from '@/api/database/hooks';
+import { useFileUploadMutation, UploadError } from '@/api/datasets/hooks';
+import { Separator } from '@radix-ui/react-separator';
+import loader from '@/assets/loader.svg';
+import { useAppState } from '@/state/hooks';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AxiosError } from 'axios';
+import { TruncatedText } from './ui-custom/truncated-text';
 
-export const AddDataModal = () => {
+export const AddDataModal = ({ highlight }: { highlight?: boolean }) => {
   const { data } = useFetchAllDatasets();
   const [selectedDatasets, setSelectedDatasets] = useState<string[]>([]);
   const { data: dbTables } = useGetDatabaseTables();
@@ -38,6 +38,7 @@ export const AddDataModal = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const { mutate, progress } = useFileUploadMutation({
     onSuccess: () => {
@@ -48,7 +49,7 @@ export const AddDataModal = () => {
     onError: (error: UploadError | AxiosError) => {
       setIsPending(false);
       console.error(error);
-      setError(error.message || "An error occurred while uploading files");
+      setError(error.message || t('An error occurred while uploading files'));
     },
   });
 
@@ -66,7 +67,7 @@ export const AddDataModal = () => {
   return (
     <Dialog
       defaultOpen={isOpen}
-      onOpenChange={(open) => {
+      onOpenChange={open => {
         setIsOpen(open);
         setError(null);
         setFiles([]);
@@ -74,13 +75,17 @@ export const AddDataModal = () => {
       open={isOpen}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" testId="add-data-button">
-          <FontAwesomeIcon icon={faPlus} /> Add Data
+        <Button
+          variant="outline"
+          testId="add-data-button"
+          className={cn(highlight && 'animate-[var(--animation-blink-border-and-shadow)]')}
+        >
+          <FontAwesomeIcon icon={faPlus} /> {t('Add Data')}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[800px]">
         <DialogHeader>
-          <DialogTitle>Add Data</DialogTitle>
+          <DialogTitle>{t('Add Data')}</DialogTitle>
           <Separator className="border-t" />
           <DialogDescription></DialogDescription>
         </DialogHeader>
@@ -90,19 +95,19 @@ export const AddDataModal = () => {
           <>
             <div className="h-10 flex-col justify-start items-start inline-flex">
               <div className="text-primary text-sm font-semibold leading-normal">
-                Local files
+                {t('Local files')}
               </div>
               <div className="text-muted-foreground text-sm font-normal leading-normal">
-                Select one or more CSV, XLSX, XLS files, up to 200MB.
+                {t('Select one or more CSV, XLSX, XLS files, up to 200MB.')}
               </div>
             </div>
             <FileUploader onFilesChange={setFiles} progress={progress} />
-            <h4>Data Registry</h4>
-            <h6>Select one or more catalog items</h6>
+            <h4>{t('Data Registry')}</h4>
+            <h6>{t('Select one or more catalog items')}</h6>
             <MultiSelect
               options={
                 data
-                  ? data.map((i) => ({
+                  ? data.map(i => ({
                       label: i.name,
                       value: i.id,
                       postfix: i.size,
@@ -111,7 +116,7 @@ export const AddDataModal = () => {
               }
               onValueChange={setSelectedDatasets}
               defaultValue={selectedDatasets}
-              placeholder="Select one or more items."
+              placeholder={t('Select one or more items.')}
               variant="inverted"
               modalPopover
               animation={2}
@@ -129,12 +134,12 @@ export const AddDataModal = () => {
 
         {dataSource == DATA_SOURCES.DATABASE && (
           <>
-            <h4>Databases</h4>
-            <h6>Select one or more tables</h6>
+            <h4>{t('Databases')}</h4>
+            <h6>{t('Select one or more tables')}</h6>
             <MultiSelect
               options={
                 dbTables
-                  ? dbTables.map((i) => ({
+                  ? dbTables.map(i => ({
                       label: i,
                       value: i,
                     }))
@@ -142,7 +147,7 @@ export const AddDataModal = () => {
               }
               onValueChange={setSelectedTables}
               defaultValue={selectedTables}
-              placeholder="Select one or more items."
+              placeholder={t('Select one or more items.')}
               variant="inverted"
               testId="database-table-select"
               modalPopover
@@ -153,35 +158,34 @@ export const AddDataModal = () => {
         )}
         <Separator className="border-t mt-6" />
         <DialogFooter>
-          <Button variant={"ghost"} onClick={() => setIsOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="secondary"
-            disabled={isPending}
-            testId="add-data-modal-save-button"
-            onClick={() => {
-              setError(null);
-              setIsPending(true);
-              if (dataSource === DATA_SOURCES.DATABASE) {
-                if (selectedTables.length > 0) {
-                  loadFromDatabase({ tableNames: selectedTables });
+          <div className="flex gap-2 w-full items-center">
+            <div className="flex-1" />
+            <Button variant={'ghost'} onClick={() => setIsOpen(false)}>
+              {t('Cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={isPending}
+              testId="add-data-modal-save-button"
+              onClick={() => {
+                setError(null);
+                setIsPending(true);
+                if (dataSource === DATA_SOURCES.DATABASE) {
+                  if (selectedTables.length > 0) {
+                    loadFromDatabase({ tableNames: selectedTables });
+                  }
+                } else {
+                  mutate({ files, catalogIds: selectedDatasets });
                 }
-              } else {
-                mutate({ files, catalogIds: selectedDatasets });
-              }
-            }}
-          >
-            {isPending && (
-              <img
-                src={loader}
-                alt="downloading"
-                className="w-4 h-4 animate-spin"
-              />
-            )}
-            Save selections
-          </Button>
+              }}
+            >
+              {isPending && (
+                <img src={loader} alt={t('downloading')} className="w-4 h-4 animate-spin" />
+              )}
+              {t('Save selections')}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

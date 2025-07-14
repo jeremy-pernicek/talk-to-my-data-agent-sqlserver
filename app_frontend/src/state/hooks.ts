@@ -3,11 +3,11 @@ import { AppStateContext } from './AppStateContext';
 import { AppState } from './types';
 
 export const useAppState = (): AppState => {
-    const context = useContext(AppStateContext);
+  const context = useContext(AppStateContext);
 
-    if (context === undefined) {
-        throw new Error('useAppState must be used within an AppStateProvider');
-    }
+  if (context === undefined) {
+    throw new Error('useAppState must be used within an AppStateProvider');
+  }
 
-    return context;
+  return context;
 };
