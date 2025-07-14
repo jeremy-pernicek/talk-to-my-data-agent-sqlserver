@@ -674,7 +674,6 @@ class ChatMessagePayload(BaseModel):
     enable_chart_generation: bool = True
     enable_business_insights: bool = True
     data_source: str = "file"
-    chatName: Optional[str] = "New Chat"
 
 
 class DownloadedRegistryDataset(BaseModel):

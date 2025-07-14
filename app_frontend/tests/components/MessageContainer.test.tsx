@@ -17,16 +17,16 @@ describe('MessageContainer Component', () => {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
       value: scrollIntoViewMock,
-      writable: true,
+      writable: true
     });
   });
-
+  
   afterEach(() => {
     // Restore the original method after each test
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
       value: originalScrollIntoView,
-      writable: true,
+      writable: true
     });
   });
 
@@ -48,7 +48,7 @@ describe('MessageContainer Component', () => {
         <div>Content</div>
       </MessageContainer>
     );
-
+    
     const container = screen.getByText('Content').parentElement;
     expect(container).toHaveClass('p-3');
     expect(container).toHaveClass('bg-card');
@@ -62,7 +62,7 @@ describe('MessageContainer Component', () => {
         <div>Scroll Test</div>
       </MessageContainer>
     );
-
+    
     // Verify scrollIntoView was called with false
     expect(scrollIntoViewMock).toHaveBeenCalledWith(false);
   });

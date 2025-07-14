@@ -1,3 +1,5 @@
-import { appHandlers } from './handlers/app';
+import { appHandlers } from "./handlers/app";
 
-export const handlers = [...appHandlers];
+export const handlers = [
+  ...appHandlers,
+]

@@ -5,32 +5,32 @@ import { useEffect } from 'react';
 import { datasetKeys } from '../datasets/keys';
 
 export const useDataRobotInfo = () => {
-  const query = useQuery({
-    queryKey: dataRobotInfoKey,
-    queryFn: getDataRobotInfo,
-  });
+    const query = useQuery({
+        queryKey: dataRobotInfoKey,
+        queryFn: getDataRobotInfo,
+    });
 
-  useEffect(() => {
-    try {
-      getDataRobotInfo();
-    } catch (error) {
-      console.error('Error in DataRobot info effect:', error);
-    }
-  }, []);
+    useEffect(() => {
+        try {
+            getDataRobotInfo();
+        } catch (error) {
+            console.error('Error in DataRobot info effect:', error);
+        }
+    }, []);
 
-  return query;
+    return query;
 };
 
 export const useUpdateApiToken = () => {
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
-  const mutation = useMutation({
-    mutationFn: updateApiToken,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dataRobotInfoKey });
-      queryClient.invalidateQueries({ queryKey: datasetKeys.all });
-    },
-  });
+    const mutation = useMutation({
+        mutationFn: updateApiToken,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: dataRobotInfoKey });
+            queryClient.invalidateQueries({ queryKey: datasetKeys.all });
+        },
+    });
 
-  return mutation;
+    return mutation;
 };

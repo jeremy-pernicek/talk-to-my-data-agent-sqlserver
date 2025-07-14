@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { test, describe, expect, vi, type MockInstance, type Mock } from 'vitest';
+import { test, describe, expect, vi, type MockInstance, type Mock  } from 'vitest';
 import { NewChatModal } from '@/components/NewChatModal';
 import { useCreateChat } from '@/api/chat-messages/hooks';
 import { useNavigate } from 'react-router-dom';
@@ -20,12 +20,12 @@ vi.mock('@/pages/routes', () => ({
 
 // Mock FontAwesomeIcon
 vi.mock('@fortawesome/react-fontawesome', () => ({
-  FontAwesomeIcon: () => <div data-testid="mock-icon" />,
+  FontAwesomeIcon: () => <div data-testid="mock-icon" />
 }));
 
 // Mock lucide-react
 vi.mock('lucide-react', () => ({
-  XIcon: () => <div data-testid="x-icon" />,
+  XIcon: () => <div data-testid="x-icon" />
 }));
 
 describe('NewChatModal Component', () => {
@@ -46,7 +46,7 @@ describe('NewChatModal Component', () => {
     (useNavigate as Mock).mockReturnValue(mockNavigate);
 
     // Mock the generateChatRoute function
-    (generateChatRoute as Mock).mockImplementation(id => `/chat/${id}`);
+    (generateChatRoute as Mock).mockImplementation((id) => `/chat/${id}`);
   });
 
   test('renders the trigger button correctly', () => {

@@ -1,89 +1,73 @@
-import { useState } from 'react';
-import { useTranslation } from '@/i18n';
-import { useNavigate, useParams } from 'react-router-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import drLogo from '@/assets/DataRobot_white.svg';
-import { SidebarMenu, SidebarMenuOptionType } from '@/components/ui-custom/sidebar-menu';
-import { WelcomeModal } from './WelcomeModal';
-import { AddDataModal } from './AddDataModal';
-import { ROUTES, generateChatRoute, generateDataRoute } from '@/pages/routes';
-import { Separator } from '@radix-ui/react-separator';
-import { NewChatModal } from './NewChatModal';
-import loader from '@/assets/loader.svg';
-import { useGeneratedDictionaries, getDictionariesMenu } from '@/api/dictionaries';
-import { useFetchAllChats, getChatsMenu } from '@/api/chat-messages';
-import { Button } from '@/components/ui/button';
-import { faCog } from '@fortawesome/free-solid-svg-icons/faCog';
-import { SettingsModal } from '@/components/SettingsModal';
+import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTable } from "@fortawesome/free-solid-svg-icons/faTable";
+import { faComments } from "@fortawesome/free-regular-svg-icons/faComments";
+import drLogo from "@/assets/DataRobot_white.svg";
+import {
+  SidebarMenu,
+  SidebarMenuOptionType,
+} from "@/components/ui-custom/sidebar-menu";
+import { WelcomeModal } from "./WelcomeModal";
+import { AddDataModal } from "./AddDataModal";
+import { ROUTES, generateChatRoute } from "@/pages/routes";
+import { Separator } from "@radix-ui/react-separator";
+import { NewChatModal } from "./NewChatModal";
+import loader from "@/assets/loader.svg";
+import { useGeneratedDictionaries } from "@/api/dictionaries/hooks";
+import { cn } from "@/lib/utils";
+import { useFetchAllChats } from "@/api/chat-messages/hooks";
+import { Button } from "@/components/ui/button";
+import { faCog } from "@fortawesome/free-solid-svg-icons/faCog";
+import { SettingsModal } from "@/components/SettingsModal";
 
-const DatasetList = ({ highlight }: { highlight: boolean }) => {
-  const { data, isLoading } = useGeneratedDictionaries<SidebarMenuOptionType[]>({
-    select: getDictionariesMenu,
-  });
-  const { t } = useTranslation();
-  const params = useParams();
-  const navigate = useNavigate();
-
+export const Sidebar = () => {
   return (
-    <div className="relative flex flex-col max-h-[300px]">
-      <div className="flex justify-between items-center pb-3">
-        <div>
-          <p className="text-base font-semibold">{t('Datasets')}</p>
-        </div>
-        <AddDataModal highlight={highlight} />
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        <SidebarMenu
-          options={data}
-          activeKey={params.dataId}
-          onClick={({ name }) => navigate(generateDataRoute(name))}
-        />
-        {isLoading && (
-          <div className="mt-4 flex justify-center">
-            <img src={loader} alt={t('Loading')} className="w-4 h-4 animate-spin" />
-          </div>
-        )}
-        {!isLoading && !data?.length && (
-          <p className="text-muted-foreground">{t('Add your data here')}</p>
-        )}
-      </div>
+    <div className="flex flex-col gap-6 p-6 h-full overflow-y-auto">
+      <SidebarHeader />
     </div>
   );
 };
 
-const ChatList = ({ highlight }: { highlight: boolean }) => {
-  const { data, isLoading } = useFetchAllChats<SidebarMenuOptionType[]>({ select: getChatsMenu });
-  const navigate = useNavigate();
-  const { chatId } = useParams();
+const DatasetList = () => {
+  const { data } = useGeneratedDictionaries();
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const { t } = useTranslation();
 
   return (
     <div className="relative flex flex-col h-full min-h-[300px]">
-      <div className="flex justify-between items-center pb-3">
+      <div className="flex justify-between items-center">
         <div>
-          <p className="text-base font-semibold">{t('Chats')}</p>
+          <strong>Datasets</strong>
         </div>
-        <NewChatModal highlight={highlight} />
+        <AddDataModal />
       </div>
-      <div className="flex-1 overflow-y-auto">
-        <SidebarMenu
-          options={data}
-          activeKey={chatId}
-          onClick={({ id }) => {
-            navigate(generateChatRoute(id));
-          }}
-        />
-        {isLoading && (
-          <div className="mt-4 flex justify-center">
-            <img src={loader} alt={t('Loading')} className="w-4 h-4 animate-spin" />
+      <div className="flex-1 flex flex-col pt-1">
+        {data?.map((dictionary) => (
+          <div
+            key={dictionary.name}
+            className="h-8 py-3 justify-start items-start gap-1 inline-flex"
+          >
+            <div
+              className={cn("grow h-6 text-base leading-tight truncate", {
+                "text-muted-foreground": dictionary.in_progress,
+              })}
+            >
+              {dictionary.name}
+            </div>
+            {dictionary.in_progress && (
+              <img
+                src={loader}
+                alt="processing"
+                className="mr-2 w-4 h-4 animate-spin"
+              />
+            )}
           </div>
-        )}
-        {!isLoading && !data?.length && (
-          <p className="text-muted-foreground">{t('Start your first chart here')}</p>
-        )}
+        ))}
       </div>
-      <SettingsModal isOpen={settingsModalOpen} onOpenChange={setSettingsModalOpen} />
+      <SettingsModal
+        isOpen={settingsModalOpen}
+        onOpenChange={setSettingsModalOpen}
+      />
       <div className="mt-4 flex justify-center">
         <Button
           variant="ghost"
@@ -92,44 +76,136 @@ const ChatList = ({ highlight }: { highlight: boolean }) => {
           onClick={() => setSettingsModalOpen(true)}
         >
           <FontAwesomeIcon icon={faCog} />
-          <span>{t('Settings')}</span>
+          <span>Settings</span>
         </Button>
       </div>
     </div>
   );
 };
 
-export const Sidebar = () => {
-  const { data: datasets, isLoading: isLoadingDatasets } = useGeneratedDictionaries();
-  const { data: chats, isLoading: isLoadingChats } = useFetchAllChats();
-  const highlightDatasets = !isLoadingDatasets && !datasets?.length;
-  const highlightChats = !highlightDatasets && !isLoadingChats && !chats?.length;
+const ChatList = () => {
+  const location = useLocation();
+  const { data } = useFetchAllChats();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const chatIdMatch = location.pathname.match(/\/chats\/([^/]+)/);
+  const chatId = chatIdMatch ? chatIdMatch[1] : undefined;
+  const [activeKey, setActiveKey] = useState<string | undefined>(chatId);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (chatId) {
+      setActiveKey(chatId);
+    }
+  }, [chatId, location.pathname]);
+
+  const sortedChats = data?.slice().sort((a, b) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return dateA - dateB;
+  });
+
+  const options: SidebarMenuOptionType[] =
+    sortedChats?.map((c) => ({
+      key: c.id,
+      name: c.name,
+      active: activeKey === c.id,
+      onClick: () => {
+        navigate(generateChatRoute(c.id));
+      },
+    })) || [];
 
   return (
-    <div className="flex flex-col gap-6 p-6 pr-0 h-full overflow-y-auto">
-      <div className="flex flex-col h-full">
-        <div className="pr-6">
-          <img
-            src={drLogo}
-            alt="DataRobot"
-            className="w-[130px] cursor-pointer mb-4"
-            onClick={() => navigate(ROUTES.DATA)}
-          />
-          <h1 className="text-xl font-bold text-primary-light">{t('Talk to my data')}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t(
-              'Add the data you want to analyze, then ask DataRobot questions to generate insights.'
-            )}
-          </p>
+    <div className="relative flex flex-col h-full min-h-[300px]">
+      <div className="flex justify-between items-center pb-4">
+        <div>
+          <strong>Chats</strong>
         </div>
-        <Separator className="mt-6 mr-6 border-t" />
-        <div className="flex flex-col pt-6 pr-6 gap-2 flex-1 min-h-0 overflow-y-auto">
-          <DatasetList highlight={highlightDatasets} />
-          <Separator className="my-6 border-t" />
-          <ChatList highlight={highlightChats} />
-          <WelcomeModal />
+        <NewChatModal />
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        <SidebarMenu options={options} activeKey={activeKey} />
+      </div>
+      <SettingsModal
+        isOpen={settingsModalOpen}
+        onOpenChange={setSettingsModalOpen}
+      />
+      <div className="mt-4 flex justify-center">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full flex items-center justify-center gap-2"
+          onClick={() => setSettingsModalOpen(true)}
+        >
+          <FontAwesomeIcon icon={faCog} />
+          <span>Settings</span>
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export const Divider = () => {
+  return <hr className="border-t my-4" />;
+};
+
+const SidebarHeader = () => {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [activeKey, setActiveKey] = useState("");
+
+  useEffect(() => {
+    if (pathname.includes(ROUTES.DATA)) {
+      setActiveKey(ROUTES.DATA);
+    } else if (pathname.includes(ROUTES.CHATS)) {
+      setActiveKey(ROUTES.CHATS);
+    } else if (pathname === "/") {
+      setActiveKey(ROUTES.DATA);
+    }
+  }, [pathname]);
+
+  const options: SidebarMenuOptionType[] = [
+    {
+      key: "data",
+      name: "Data",
+      icon: <FontAwesomeIcon icon={faTable} />,
+      active: activeKey === ROUTES.DATA,
+      testId: "data-menu-option",
+      onClick: () => {
+        navigate(ROUTES.DATA);
+      },
+    },
+    {
+      key: "chats",
+      name: "Chats",
+      icon: <FontAwesomeIcon icon={faComments} />,
+      active: activeKey === ROUTES.CHATS,
+      testId: "chats-menu-option",
+      onClick: () => {
+        navigate(ROUTES.CHATS);
+      },
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4 h-full">
+      <img
+        src={drLogo}
+        alt="DataRobot"
+        className="w-[130px] cursor-pointer"
+        onClick={() => navigate(ROUTES.DATA)}
+      />
+      <h1 className="text-xl">Talk to my data</h1>
+      <p className="text-sm">
+        Add the data you want to analyze, then ask DataRobot questions to
+        generate insights.
+      </p>
+      <div className="flex flex-col gap-2 flex-1 min-h-0">
+        <SidebarMenu options={options} activeKey={activeKey} />
+        <Separator className="my-4 border-t" />
+        <WelcomeModal />
+        <div className="flex-1 min-h-0">
+          {activeKey === ROUTES.DATA && <DatasetList />}
+          {activeKey === ROUTES.CHATS && <ChatList />}
         </div>
       </div>
     </div>

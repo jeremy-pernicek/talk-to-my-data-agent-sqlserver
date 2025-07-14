@@ -1,34 +1,31 @@
-import { cn } from '~/lib/utils';
+import { cn } from "~/lib/utils";
 
 export type SidebarMenuOptionType = {
+  key: string;
   name: string;
   icon?: React.ReactNode;
-  endIcon?: React.ReactNode;
+  active?: boolean;
   disabled?: boolean;
+  onClick: () => void;
   testId?: string;
-  id?: string;
-  key?: string;
 };
 
 type Props = {
-  options?: SidebarMenuOptionType[];
+  options: SidebarMenuOptionType[];
   activeKey?: string;
-  onClick: (data: SidebarMenuOptionType) => void;
 };
 
-export const SidebarMenu = ({ options = [], activeKey, onClick }: Props) => {
+export const SidebarMenu = ({ options }: Props) => {
   return (
     <div className="flex flex-col gap-2">
-      {options.map(option => (
+      {options.map((option) => (
         <SidebarMenuOption
           key={option.key}
-          id={option.key}
           name={option.name}
           icon={option.icon}
-          endIcon={option.endIcon}
-          active={activeKey === option.key}
+          active={option.active}
           disabled={option.disabled}
-          onClick={onClick}
+          onClick={option.onClick}
           testId={option.testId}
         />
       ))}
@@ -37,41 +34,36 @@ export const SidebarMenu = ({ options = [], activeKey, onClick }: Props) => {
 };
 
 const SidebarMenuOption = ({
-  id,
   name,
   icon,
   active,
   disabled,
   onClick,
   testId,
-  endIcon,
-}: SidebarMenuOptionType & { active: boolean; onClick: (data: SidebarMenuOptionType) => void }) => {
+}: SidebarMenuOptionType) => {
   return (
     <div
       data-testid={testId}
       role="link"
       tabIndex={0}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || (e.key === ' ' && !disabled)) {
-          onClick({ name, id, icon, endIcon, disabled, testId });
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || (e.key === " " && !disabled)) {
+          onClick();
         }
       }}
       className={cn(
-        'flex gap-2 pr-3 pl-2 py-2 rounded border-l-[5px] border-transparent overflow-hidden transition-colors cursor-pointer hover:bg-card',
+        "flex gap-2 px-3 py-2 rounded border-l-2 border-transparent overflow-hidden transition-colors cursor-pointer hover:bg-card",
         {
-          'rounded-l-none border-l-[5px] border-purple bg-card': active,
-          'opacity-50 cursor-not-allowed': disabled,
+          "rounded-l-none border-l-2 border-primary bg-card": active,
+          "opacity-50 cursor-not-allowed": disabled,
         }
       )}
-      onClick={
-        !disabled ? () => onClick({ name, id, icon, endIcon, disabled, testId }) : () => null
-      }
+      onClick={!disabled ? onClick : () => null}
     >
-      <div className="flex items-center min-w-0 leading-[20px]" title={name}>
-        {icon && <div className="flex items-center flex-shrink-0">{icon}</div>}
-        <div className="truncate min-w-0 flex-1">{name}</div>
+      <div className="break-words flex my-1" title={name}>
+        {icon && <div className="flex items-center">{icon}</div>}
+        <div className="flex ml-2">{name}</div>
       </div>
-      {endIcon && <div className="flex items-center flex-shrink-0">{endIcon}</div>}
     </div>
   );
 };

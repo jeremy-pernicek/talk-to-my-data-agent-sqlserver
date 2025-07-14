@@ -1,4 +1,4 @@
 export const datasetKeys = {
-  all: ['datasets'],
-  upload: ['uploadDataset'],
+    all: ['datasets'],
+    upload: ['uploadDataset'],
 };

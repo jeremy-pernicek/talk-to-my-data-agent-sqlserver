@@ -5,22 +5,22 @@ import { MemoryRouter } from 'react-router-dom';
 import { AppStateProvider } from '@/state';
 
 const createTestQueryClient = () =>
-  new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
-  });
+    new QueryClient({
+        defaultOptions: {
+            queries: {
+                retry: false,
+            },
+        },
+    });
 
 export function renderWithProviders(children: ReactNode) {
-  const queryClient = createTestQueryClient();
+    const queryClient = createTestQueryClient();
 
-  return render(
-    <MemoryRouter>
-      <QueryClientProvider client={queryClient}>
-        <AppStateProvider>{children}</AppStateProvider>
-      </QueryClientProvider>
-    </MemoryRouter>
-  );
+    return render(
+        <MemoryRouter>
+            <QueryClientProvider client={queryClient}>
+                <AppStateProvider>{children}</AppStateProvider>
+            </QueryClientProvider>
+        </MemoryRouter>
+    );
 }

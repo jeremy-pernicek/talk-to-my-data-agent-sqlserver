@@ -876,7 +876,7 @@ async def create_new_chat_message(
 
     # Create a new chat
     chat_id = await analyst_db.create_chat(
-        chat_name=payload.chatName,
+        chat_name="New Chat",
         data_source=payload.data_source,
     )
 
