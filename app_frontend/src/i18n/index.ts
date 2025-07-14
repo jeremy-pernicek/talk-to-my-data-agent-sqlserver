@@ -9,43 +9,43 @@ import jaTranslations from './locales/ja.json';
 import koTranslations from './locales/ko.json';
 
 const resources = {
-    es: {
-        translation: esTranslations,
-    },
-    fr: {
-        translation: frTranslations,
-    },
-    ja: {
-        translation: jaTranslations,
-    },
-    ko: {
-        translation: koTranslations,
-    },
+  es: {
+    translation: esTranslations,
+  },
+  fr: {
+    translation: frTranslations,
+  },
+  ja: {
+    translation: jaTranslations,
+  },
+  ko: {
+    translation: koTranslations,
+  },
 };
 
 i18n.use(initReactI18next).init({
-    resources,
-    lng: localStorage.getItem('language') || 'en',
-    fallbackLng: 'en',
+  resources,
+  lng: localStorage.getItem('language') || 'en',
+  fallbackLng: 'en',
 
-    interpolation: {
-        escapeValue: false,
-    },
+  interpolation: {
+    escapeValue: false,
+  },
 
-    react: {
-        useSuspense: false,
-    },
+  react: {
+    useSuspense: false,
+  },
 });
 
 export const useTranslation = () => {
-    const { t, i18n } = useI18nTranslation();
+  const { t, i18n } = useI18nTranslation();
 
-    return {
-        t,
-        i18n,
-        changeLanguage: i18n.changeLanguage,
-        currentLanguage: i18n.language,
-    };
+  return {
+    t,
+    i18n,
+    changeLanguage: i18n.changeLanguage,
+    currentLanguage: i18n.language,
+  };
 };
 
 export default i18n;

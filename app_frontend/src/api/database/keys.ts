@@ -1,3 +1,3 @@
 export const databaseKeys = {
-    all: ['databaseTables'],
+  all: ['databaseTables'],
 };

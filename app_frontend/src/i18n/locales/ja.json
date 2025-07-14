@@ -104,9 +104,10 @@
   "Manually enter your DataRobot API token to authenticate with the service.": "DataRobot APIトークンを手動で入力して、サービスに認証してください。",
   "Save changes": "変更を保存",
   "Datasets": "データセット",
-  "Processing": "処理中",
+  "Loading": "読み込み中",
+  "Add your data here": "データを追加",
   "Chats": "チャット",
-  "Data": "データ",
+  "Start your first chart here": "最初のチャートを作成",
   "Talk to my data": "データと話す",
   "Add the data you want to analyze, then ask DataRobot questions to generate insights.": "データを分析したい場合は、データを追加して、DataRobotに質問してください。",
   "Drag and drop from your desktop, or": "デスクトップからドラッグ&ドロップ、または",
@@ -122,5 +123,6 @@
   "Are you sure you want to delete this chat?": "このチャットを削除してもよろしいですか？",
   "New Chat": "新しいチャット",
   "Export chat": "チャットをエクスポート",
+  "Data": "データ",
   "View": "表示"
 }

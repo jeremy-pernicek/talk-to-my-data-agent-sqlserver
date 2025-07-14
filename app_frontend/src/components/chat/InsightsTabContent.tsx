@@ -5,29 +5,29 @@ import { MarkdownContent } from './MarkdownContent';
 import { useTranslation } from '@/i18n';
 
 interface InsightsTabContentProps {
-    additionalInsights?: string | null;
-    followUpQuestions?: string[] | null;
-    chatId?: string;
+  additionalInsights?: string | null;
+  followUpQuestions?: string[] | null;
+  chatId?: string;
 }
 
 export const InsightsTabContent: React.FC<InsightsTabContentProps> = ({
-    additionalInsights,
-    followUpQuestions,
-    chatId,
+  additionalInsights,
+  followUpQuestions,
+  chatId,
 }) => {
-    const { t } = useTranslation();
-    
-    return (
-        <div>
-            {/* <InfoText>
+  const { t } = useTranslation();
+
+  return (
+    <div>
+      {/* <InfoText>
         DataRobot generates additional content based on your original question.
       </InfoText> */}
-            {additionalInsights && (
-                <HeaderSection title={t("Data insights")}>
-                    <MarkdownContent content={additionalInsights} />
-                </HeaderSection>
-            )}
-            <SuggestedQuestionsSection questions={followUpQuestions} chatId={chatId} />
-        </div>
-    );
+      {additionalInsights && (
+        <HeaderSection title={t('Data insights')}>
+          <MarkdownContent content={additionalInsights} />
+        </HeaderSection>
+      )}
+      <SuggestedQuestionsSection questions={followUpQuestions} chatId={chatId} />
+    </div>
+  );
 };

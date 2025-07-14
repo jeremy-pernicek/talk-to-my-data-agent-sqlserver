@@ -1,27 +1,27 @@
-import React, { useState } from "react";
-import { DictionaryTable as DT } from "@/api/dictionaries/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useState, forwardRef } from 'react';
+import { DictionaryTable as DT } from '@/api/dictionaries/types';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   useDeleteGeneratedDictionary,
   useUpdateDictionaryCell,
   useDownloadDictionary,
-} from "@/api/dictionaries/hooks";
-import { useDatasetMetadata } from "@/api/cleansed-datasets/hooks";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCheck } from "@fortawesome/free-solid-svg-icons/faCheck";
-import { faDownload } from "@fortawesome/free-solid-svg-icons/faDownload";
-import { faTrash } from "@fortawesome/free-solid-svg-icons/faTrash";
-import loader from "@/assets/loader.svg";
-import { DictionaryTable } from "./DictionaryTable";
-import { CleansedDataTable } from "./CleansedDataTable";
-import { ValueOf } from "@/state/types";
-import { DATA_TABS } from "@/state/constants";
-import { cn } from "@/lib/utils";
-import { useTranslation } from "@/i18n";
+} from '@/api/dictionaries/hooks';
+import { useDatasetMetadata } from '@/api/cleansed-datasets/hooks';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCheck } from '@fortawesome/free-solid-svg-icons/faCheck';
+import { faDownload } from '@fortawesome/free-solid-svg-icons/faDownload';
+import { faTrash } from '@fortawesome/free-solid-svg-icons/faTrash';
+import loader from '@/assets/loader.svg';
+import { DictionaryTable } from './DictionaryTable';
+import { CleansedDataTable } from './CleansedDataTable';
+import { ValueOf } from '@/state/types';
+import { DATA_TABS } from '@/state/constants';
+import { cn } from '@/lib/utils';
+import { useTranslation } from '@/i18n';
 
-import { ConfirmDialog } from "../ui-custom/confirm-dialog";
+import { ConfirmDialog } from '../ui-custom/confirm-dialog';
 
 interface DatasetCardDescriptionPanelProps {
   dictionary: DT;
@@ -29,9 +29,10 @@ interface DatasetCardDescriptionPanelProps {
   viewMode: ValueOf<typeof DATA_TABS>;
 }
 
-export const DatasetCardDescriptionPanel: React.FC<
+export const DatasetCardDescriptionPanel = forwardRef<
+  HTMLDivElement,
   DatasetCardDescriptionPanelProps
-> = ({ dictionary, isProcessing = true, viewMode = "description" }) => {
+>(({ dictionary, isProcessing = true, viewMode = 'description' }, ref) => {
   const { t } = useTranslation();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { mutate: deleteDictionary, isPending: isDeleting } = useDeleteGeneratedDictionary({
@@ -40,42 +41,38 @@ export const DatasetCardDescriptionPanel: React.FC<
     },
   });
   const { mutate: updateCell } = useUpdateDictionaryCell();
-  const { mutate: downloadDictionary, isPending: isDownloading } =
-    useDownloadDictionary();
-  const { data: metadata, isLoading: isLoadingMetadata } = useDatasetMetadata(
-    dictionary.name
-  );
+  const { mutate: downloadDictionary, isPending: isDownloading } = useDownloadDictionary();
+  const { data: metadata, isLoading: isLoadingMetadata } = useDatasetMetadata(dictionary.name);
 
   // Format file size from bytes to KB/MB/GB as appropriate
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return "0 Bytes";
+    if (bytes === 0) return '0 Bytes';
 
     const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const size = metadata?.file_size
-    ? formatFileSize(metadata.file_size)
-    : "0 MB";
+  const size = metadata?.file_size ? formatFileSize(metadata.file_size) : '0 MB';
 
   return (
     <div
-      className={cn("flex flex-col w-full bg-card p-4", {
-        "h-[400px]": isProcessing,
+      ref={ref}
+      className={cn('flex flex-col w-full bg-card p-4', {
+        'h-[400px]': isProcessing,
       })}
     >
       <ConfirmDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
-        title={t("Delete dictionary")}
-        confirmText={t("Delete")}
-        cancelText={t("Cancel")}
+        title={t('Delete dictionary')}
+        confirmText={t('Delete')}
+        cancelText={t('Cancel')}
         variant="destructive"
         isLoading={isDeleting}
-        description={t("Are you sure you want to delete this dictionary?")}
+        description={t('Are you sure you want to delete this dictionary?')}
         onConfirm={() => deleteDictionary({ name: dictionary.name })}
       />
       <div>
@@ -86,28 +83,24 @@ export const DatasetCardDescriptionPanel: React.FC<
           <div className="flex gap-2 my-1">
             <Badge variant="secondary" className="leading-tight text-sm">
               {isLoadingMetadata
-                ? t("Loading...")
-                : `${metadata?.columns?.length || 0} ${t("features")}`}
+                ? t('Loading...')
+                : `${metadata?.columns?.length || 0} ${t('features')}`}
             </Badge>
             <Badge variant="secondary" className="leading-tight text-sm">
               {isLoadingMetadata
-                ? t("Loading...")
-                : `${metadata?.row_count?.toLocaleString() || 0} ${t("rows")}`}
+                ? t('Loading...')
+                : `${metadata?.row_count?.toLocaleString() || 0} ${t('rows')}`}
             </Badge>
             <Badge variant="secondary" className="leading-tight text-sm">
-              {isLoadingMetadata ? t("Loading...") : size}
+              {isLoadingMetadata ? t('Loading...') : size}
             </Badge>
             <Badge variant="secondary" className="leading-tight text-sm">
-              {metadata?.data_source || t("file")}
+              {metadata?.data_source || t('file')}
             </Badge>
             {isProcessing ? (
               <Badge variant="outline" className="leading-tight text-sm">
-                <img
-                  src={loader}
-                  alt={t("processing")}
-                  className="mr-2 w-4 h-4 animate-spin"
-                />
-                {t("Processing...")}
+                <img src={loader} alt={t('processing')} className="mr-2 w-4 h-4 animate-spin" />
+                {t('Processing...')}
               </Badge>
             ) : (
               <Badge
@@ -116,7 +109,7 @@ export const DatasetCardDescriptionPanel: React.FC<
                 className="leading-tight text-sm"
               >
                 <FontAwesomeIcon className="mr-2 w-4 h-4 " icon={faCheck} />
-                {t("Processed")}
+                {t('Processed')}
               </Badge>
             )}
           </div>
@@ -126,15 +119,11 @@ export const DatasetCardDescriptionPanel: React.FC<
               onClick={() => {
                 downloadDictionary({ name: dictionary.name });
               }}
-              title={t("Download dictionary as CSV")}
+              title={t('Download dictionary as CSV')}
               disabled={isProcessing || isDownloading}
             >
               {isDownloading ? (
-                <img
-                  src={loader}
-                  alt={t("downloading")}
-                  className="w-4 h-4 animate-spin"
-                />
+                <img src={loader} alt={t('downloading')} className="w-4 h-4 animate-spin" />
               ) : (
                 <FontAwesomeIcon icon={faDownload} />
               )}
@@ -144,7 +133,7 @@ export const DatasetCardDescriptionPanel: React.FC<
               onClick={() => {
                 setIsDeleteDialogOpen(true);
               }}
-              title={t("Delete dictionary")}
+              title={t('Delete dictionary')}
             >
               <FontAwesomeIcon icon={faTrash} />
             </Button>
@@ -154,7 +143,7 @@ export const DatasetCardDescriptionPanel: React.FC<
       <div className="flex flex-col flex-1 text-lg">
         {isProcessing ? (
           <div className="flex flex-col flex-1 items-center justify-center">
-            {t("Processing the dataset may take a few minutes...")}
+            {t('Processing the dataset may take a few minutes...')}
           </div>
         ) : (
           <ScrollArea className="mt-4 h-96">
@@ -179,14 +168,11 @@ export const DatasetCardDescriptionPanel: React.FC<
                 }}
               />
             ) : (
-              <CleansedDataTable
-                datasetName={dictionary.name}
-                rowsPerPage={50}
-              />
+              <CleansedDataTable datasetName={dictionary.name} rowsPerPage={50} />
             )}
           </ScrollArea>
         )}
       </div>
     </div>
   );
-};
+});

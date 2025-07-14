@@ -16,25 +16,25 @@ import i18n from './i18n';
 
 let basename = window.ENV?.APP_BASE_URL ?? undefined;
 if (
-    window.ENV?.APP_BASE_URL?.includes('notebook-sessions') &&
-    window.ENV?.API_PORT &&
-    isServedStatic()
+  window.ENV?.APP_BASE_URL?.includes('notebook-sessions') &&
+  window.ENV?.API_PORT &&
+  isServedStatic()
 ) {
-    basename += `/ports/` + window.ENV.API_PORT;
+  basename += `/ports/` + window.ENV.API_PORT;
 }
 
 const queryClient = new QueryClient();
 
 createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-        <QueryClientProvider client={queryClient}>
-            <I18nextProvider i18n={i18n}>
-                <Router basename={basename}>
-                    <AppStateProvider>
-                        <App />
-                    </AppStateProvider>
-                </Router>
-            </I18nextProvider>
-        </QueryClientProvider>
-    </StrictMode>
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <I18nextProvider i18n={i18n}>
+        <Router basename={basename}>
+          <AppStateProvider>
+            <App />
+          </AppStateProvider>
+        </Router>
+      </I18nextProvider>
+    </QueryClientProvider>
+  </StrictMode>
 );

@@ -104,9 +104,10 @@
   "Manually enter your DataRobot API token to authenticate with the service.": "Entrez manuellement votre jeton API de DataRobot pour vous authentifier avec le service.",
   "Save changes": "Enregistrer les modifications",
   "Datasets": "Datasets",
-  "Processing": "En cours",
+  "Loading": "Chargement",
+  "Add your data here": "Ajoutez vos données ici",
   "Chats": "Chats",
-  "Data": "Données",
+  "Start your first chart here": "Commencez votre premier graphique ici",
   "Talk to my data": "Parlez à mes données",
   "Add the data you want to analyze, then ask DataRobot questions to generate insights.": "Ajoutez les données que vous souhaitez analyser, puis posez des questions à DataRobot pour générer des insights.",
   "Drag and drop from your desktop, or": "Glissez-déposez depuis votre bureau, ou",
@@ -122,5 +123,6 @@
   "Are you sure you want to delete this chat?": "Êtes-vous sûr de vouloir supprimer ce chat ?",
   "New Chat": "Nouveau Chat",
   "Export chat": "Exporter le chat",
+  "Data": "Données",
   "View": "Voir"
 }
