@@ -33,6 +33,7 @@ from utils.credentials import (
     NoDatabaseCredentials,
     SAPDatasphereCredentials,
     SnowflakeCredentials,
+    SQLServerCredentials,
 )
 from utils.schema import (
     DatabaseConnectionType,
@@ -220,6 +221,58 @@ def get_credential_runtime_parameter_values(
                 "key": "SAP_DATASPHERE_SCHEMA",
                 "type": "string",
                 "value": credentials.db_schema,
+            },
+        ]
+        credential_rtp_dicts = [rtp for rtp in rtps if rtp["value"] is not None]
+    elif isinstance(credentials, SQLServerCredentials):
+        rtps = [
+            {
+                "key": "db_credential",
+                "type": "basic_credential",
+                "value": {
+                    "user": credentials.user,
+                    "password": credentials.password,
+                },
+            },
+            {
+                "key": "AZURE_SQL_HOST",
+                "type": "string",
+                "value": credentials.host,
+            },
+            {
+                "key": "AZURE_SQL_PORT",
+                "type": "string",
+                "value": str(credentials.port),
+            },
+            {
+                "key": "AZURE_SQL_DATABASE",
+                "type": "string",
+                "value": credentials.database,
+            },
+            {
+                "key": "AZURE_SQL_SCHEMA",
+                "type": "string",
+                "value": credentials.db_schema,
+            },
+            {
+                "key": "AZURE_SQL_DRIVER",
+                "type": "string",
+                "value": credentials.driver,
+            },
+            {
+                "key": "AZURE_SQL_TRUST_CERT",
+                "type": "string",
+                "value": str(credentials.trust_server_certificate).lower(),
+            },
+            {
+                "key": "AZURE_SQL_ENCRYPT",
+                "type": "string",
+                "value": str(credentials.encrypt).lower(),
+            },
+            {
+                "key": "AZURE_SQL_CONN_TIMEOUT",
+                "type": "string",
+                "value": str(credentials.connection_timeout),
             },
         ]
         credential_rtp_dicts = [rtp for rtp in rtps if rtp["value"] is not None]
@@ -455,12 +508,14 @@ def get_database_credentials(
     SnowflakeCredentials
     | GoogleCredentialsBQ
     | SAPDatasphereCredentials
+    | SQLServerCredentials
     | NoDatabaseCredentials
 ):
     credentials: (
         SnowflakeCredentials
         | GoogleCredentialsBQ
         | SAPDatasphereCredentials
+        | SQLServerCredentials
         | NoDatabaseCredentials
     )
 
@@ -564,6 +619,62 @@ def get_database_credentials(
                     connection.close()
                 except Exception as e:
                     raise ValueError("Failed to connect to SAP Data Sphere.") from e
+            return credentials
+        elif database == "sqlserver":
+            credentials = SQLServerCredentials()
+            if not credentials.is_configured():
+                logger.error("SQL Server credentials not fully configured")
+                raise ValueError(
+                    textwrap.dedent(
+                        f"""
+                        Your SQL Server credentials and environment variables were not configured properly.
+                        
+                        Please validate your environment variables or check {__file__} for details.
+                        """
+                    )
+                )
+            
+            if test_credentials:
+                import pyodbc
+                
+                # Build connection string matching production configuration
+                connection_string = (
+                    f"DRIVER={{{credentials.driver}}};"
+                    f"SERVER={credentials.host},{credentials.port};"
+                    f"DATABASE={credentials.database};"
+                    f"UID={credentials.user};"
+                    f"PWD={credentials.password};"
+                )
+                
+                # Add SSL/TLS settings to match production
+                if credentials.encrypt:
+                    connection_string += "Encrypt=yes;"
+                else:
+                    connection_string += "Encrypt=no;"
+                    
+                if credentials.trust_server_certificate:
+                    connection_string += "TrustServerCertificate=yes;"
+                else:
+                    connection_string += "TrustServerCertificate=no;"
+                
+                # Add connection timeout
+                connection_string += f"ConnectTimeout={credentials.connection_timeout};"
+                
+                try:
+                    conn = pyodbc.connect(connection_string, timeout=credentials.connection_timeout)
+                    conn.close()
+                except Exception as e:
+                    logger.exception("Failed to test SQL Server connection")
+                    raise ValueError(
+                        textwrap.dedent(
+                            f"""
+                            Unable to run a successful test of SQL Server with the given credentials.
+                            
+                            Please validate your credentials or check {__file__} for details.
+                            """
+                        )
+                    ) from e
+            
             return credentials
 
     except pydantic.ValidationError as exc:

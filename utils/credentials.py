@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from pydantic import AliasChoices, AliasPath, Field
+from pydantic import AliasChoices, AliasPath, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -275,6 +275,115 @@ class SAPDatasphereCredentials(DRCredentials):
         Check if SAP Data Sphere credentials are properly configured.
         """
         return bool(self.host and self.port and self.user and self.password)
+
+
+class SQLServerCredentials(DRCredentials):
+    """
+    SQL Server Connection credentials auto-constructed using environment variables.
+    """
+
+    host: str = Field(
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_HOST"),
+            "AZURE_SQL_HOST",
+        ),
+    )
+    port: int = Field(
+        default=1433,
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_PORT"),
+            "AZURE_SQL_PORT",
+        ),
+        ge=1,
+        le=65535,
+        description="SQL Server port number (1-65535)",
+    )
+    user: str = Field(
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_db_credential", "payload", "username"),
+            "AZURE_SQL_USER",
+        ),
+    )
+    password: str = Field(
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_db_credential", "payload", "password"),
+            "AZURE_SQL_PASSWORD",
+        ),
+    )
+    database: str = Field(
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_DATABASE"),
+            "AZURE_SQL_DATABASE",
+        ),
+    )
+    db_schema: str = Field(
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_SCHEMA"),
+            "AZURE_SQL_SCHEMA",
+        ),
+    )
+    driver: str = Field(
+        default="ODBC Driver 18 for SQL Server",
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_DRIVER"),
+            "AZURE_SQL_DRIVER",
+        ),
+        description="ODBC driver name (e.g., 'ODBC Driver 18 for SQL Server', 'ODBC Driver 17 for SQL Server')",
+    )
+    trust_server_certificate: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_TRUST_CERT"),
+            "AZURE_SQL_TRUST_CERT",
+        ),
+        description="Whether to trust the server certificate without validation (False is recommended for production)",
+    )
+    encrypt: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_ENCRYPT"),
+            "AZURE_SQL_ENCRYPT",
+        ),
+        description="Whether to encrypt the connection",
+    )
+    connection_timeout: int = Field(
+        default=30,
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_CONN_TIMEOUT"),
+            "AZURE_SQL_CONN_TIMEOUT",
+        ),
+        ge=1,
+        le=300,
+        description="Connection timeout in seconds (1-300)",
+    )
+
+    @field_validator("db_schema")
+    @classmethod
+    def validate_schema_name(cls, v: str) -> str:
+        """Validate that schema name contains only safe characters"""
+        if not v:
+            raise ValueError("Schema name cannot be empty")
+        # Allow only alphanumeric, underscore, and dot for schema names
+        if not all(c.isalnum() or c in ('_', '.') for c in v):
+            raise ValueError(
+                "Schema name can only contain alphanumeric characters, underscores, and dots"
+            )
+        return v
+
+    def is_configured(self) -> bool:
+        """
+        Check if SQL Server credentials are properly configured.
+        """
+        return all(
+            [
+                self.host,
+                self.port,
+                self.user,
+                self.password,
+                self.database,
+                self.db_schema,
+            ]
+        )
 
 
 class NoDatabaseCredentials(DRCredentials):

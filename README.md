@@ -1,6 +1,6 @@
 # Talk to My Data  
 
-**Talk to My Data** delivers a seamless **talk-to-your-data** experience, transforming files, spreadsheets, and cloud data into actionable insights. Simply upload data, connect to Snowflake or BigQuery, or access datasets from DataRobot's Data Registry. Then, ask a question, and the agent recommends business analyses, generating **charts, tables, and even code** to help you interpret the results.  
+**Talk to My Data** delivers a seamless **talk-to-your-data** experience, transforming files, spreadsheets, and cloud data into actionable insights. Simply upload data, connect to Snowflake, BigQuery, SAP Datasphere, or SQL Server, or access datasets from DataRobot's Data Registry. Then, ask a question, and the agent recommends business analyses, generating **charts, tables, and even code** to help you interpret the results.  
 
 This intuitive experience is designed for **scalability and flexibility**, ensuring that whether you're working with a few thousand rows or billions, your data analysis remains **fast, efficient, and insightful**.  
 
@@ -23,6 +23,8 @@ This intuitive experience is designed for **scalability and flexibility**, ensur
    - [Change the database](#change-the-database)
       * [Snowflake](#snowflake)
       * [BigQuery](#bigquery)
+      * [SAP Datasphere](#sap-datasphere)
+      * [SQL Server / Azure SQL Database](#sql-server--azure-sql-database)
 6. [Tools](#tools)
 7. [Share results](#share-results)
 8. [Delete all provisioned resources](#delete-all-provisioned-resources)
@@ -191,6 +193,58 @@ The Talk to my Data Agent supports connecting to SAP Datasphere.
       source set_env.sh  # On windows use `set_env.bat`
       pulumi up
       ```
+
+#### SQL Server / Azure SQL Database
+
+The Talk to My Data Agent supports connecting to Microsoft SQL Server and Azure SQL Database.
+
+**Prerequisites:**
+- Install an ODBC driver for SQL Server. Recommended drivers:
+  - **Linux/macOS**: [Microsoft ODBC Driver 18 for SQL Server](https://docs.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server)
+  - **Windows**: ODBC Driver 18 for SQL Server (usually pre-installed)
+  - Alternative: ODBC Driver 17 for SQL Server (for older systems)
+
+**Setup Steps:**
+1. Modify the `DATABASE_CONNECTION_TYPE` setting in `infra/settings_database.py` by changing `DATABASE_CONNECTION_TYPE = "no_database"` to `DATABASE_CONNECTION_TYPE = "sqlserver"`.
+
+2. Provide the required SQL Server credentials in `.env`:
+   ```bash
+   AZURE_SQL_HOST=your-server.database.windows.net  # or your SQL Server hostname
+   AZURE_SQL_PORT=1433                               # default SQL Server port
+   AZURE_SQL_USER=your-username
+   AZURE_SQL_PASSWORD=your-password
+   AZURE_SQL_DATABASE=your-database-name
+   AZURE_SQL_SCHEMA=dbo                              # default schema
+   ```
+
+3. (Optional) Configure advanced settings in `.env`:
+   ```bash
+   # ODBC Driver (defaults to "ODBC Driver 18 for SQL Server")
+   AZURE_SQL_DRIVER=ODBC Driver 18 for SQL Server
+   
+   # SSL/TLS Settings
+   AZURE_SQL_ENCRYPT=true                            # Encrypt connection (recommended)
+   AZURE_SQL_TRUST_CERT=false                        # Set to true only for dev/test with self-signed certs
+   
+   # Connection timeout in seconds (1-300, default: 30)
+   AZURE_SQL_CONN_TIMEOUT=30
+   ```
+
+4. Run `pulumi up` to update your stack (Or rerun your quickstart):
+   ```bash
+   source set_env.sh  # On windows use `set_env.bat`
+   pulumi up
+   ```
+
+**Security Notes:**
+- For production environments, always use `AZURE_SQL_TRUST_CERT=false` to validate server certificates
+- Ensure your SQL Server is configured to accept encrypted connections
+- Use strong passwords and consider using managed identities where available
+
+**Troubleshooting:**
+- If you receive an "ODBC driver not found" error, verify the driver is installed and matches the `AZURE_SQL_DRIVER` setting
+- For Azure SQL Database, ensure your IP is allowed through the firewall
+- For on-premises SQL Server, verify network connectivity and firewall rules
 
 ## Tools
 

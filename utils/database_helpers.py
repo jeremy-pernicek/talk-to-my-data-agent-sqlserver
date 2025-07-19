@@ -16,15 +16,17 @@ from __future__ import annotations
 
 import functools
 import json
+import time
 import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generator, Generic, TypeVar, cast
+from typing import Any, Callable, Generator, Generic, TypeVar, cast
 
 import pandas as pd
 import polars as pl
+import pyodbc
 import snowflake.connector
 from google.cloud import bigquery
 from hdbcli import dbapi
@@ -40,12 +42,14 @@ from utils.credentials import (
     NoDatabaseCredentials,
     SAPDatasphereCredentials,
     SnowflakeCredentials,
+    SQLServerCredentials,
 )
 from utils.logging_helper import get_logger
 from utils.prompts import (
     SYSTEM_PROMPT_BIGQUERY,
     SYSTEM_PROMPT_SAP_DATASPHERE,
     SYSTEM_PROMPT_SNOWFLAKE,
+    SYSTEM_PROMPT_SQLSERVER,
 )
 from utils.schema import (
     AnalystDataset,
@@ -56,6 +60,59 @@ logger = get_logger("DatabaseHelper")
 
 T = TypeVar("T")
 _DEFAULT_DB_QUERY_TIMEOUT = 300
+
+
+def retry_on_transient_error(
+    max_attempts: int = 3,
+    initial_delay: float = 1.0,
+    backoff_factor: float = 2.0,
+    transient_errors: tuple[type[Exception], ...] = (
+        pyodbc.OperationalError,
+        pyodbc.InterfaceError,
+    ),
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    """Decorator to retry operations on transient database errors.
+    
+    Args:
+        max_attempts: Maximum number of retry attempts
+        initial_delay: Initial delay between retries in seconds
+        backoff_factor: Factor to multiply delay by after each retry
+        transient_errors: Tuple of exception types to consider transient
+    """
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> T:
+            delay = initial_delay
+            last_exception = None
+            
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except transient_errors as e:
+                    last_exception = e
+                    if attempt < max_attempts - 1:
+                        logger.warning(
+                            f"Transient error in {func.__name__} (attempt {attempt + 1}/{max_attempts}): {str(e)}. "
+                            f"Retrying in {delay} seconds..."
+                        )
+                        time.sleep(delay)
+                        delay *= backoff_factor
+                    else:
+                        logger.error(
+                            f"Max retry attempts reached for {func.__name__}. Last error: {str(e)}"
+                        )
+                except Exception:
+                    # Non-transient errors should not be retried
+                    raise
+            
+            # If we get here, we've exhausted all retries
+            if last_exception:
+                raise last_exception
+            else:
+                raise RuntimeError(f"Unexpected error in retry logic for {func.__name__}")
+        
+        return wrapper
+    return decorator
 
 
 @dataclass
@@ -71,6 +128,11 @@ class BigQueryCredentialArgs:
 @dataclass
 class SAPDatasphereCredentialArgs:
     credentials: SAPDatasphereCredentials
+
+
+@dataclass
+class SQLServerCredentialArgs:
+    credentials: SQLServerCredentials
 
 
 @dataclass
@@ -754,12 +816,317 @@ class SAPDatasphereOperator(DatabaseOperator[SAPDatasphereCredentialArgs]):
         )
 
 
+class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
+    def __init__(
+        self,
+        credentials: SQLServerCredentials,
+        default_timeout: int = _DEFAULT_DB_QUERY_TIMEOUT,
+    ):
+        if not credentials.is_configured():
+            raise ValueError("SQL Server credentials not properly configured")
+        self._credentials = credentials
+        self.default_timeout = default_timeout
+        
+        # Validate ODBC driver is available
+        self._validate_odbc_driver()
+    
+    def _validate_odbc_driver(self) -> None:
+        """Validate that the specified ODBC driver is installed on the system.
+        
+        Raises:
+            ValueError: If the ODBC driver is not found
+        """
+        try:
+            # Get list of available ODBC drivers
+            available_drivers = pyodbc.drivers()
+            
+            if not available_drivers:
+                raise ValueError(
+                    "No ODBC drivers found on the system. Please install an appropriate "
+                    "SQL Server ODBC driver (e.g., 'ODBC Driver 18 for SQL Server')."
+                )
+            
+            if self._credentials.driver not in available_drivers:
+                raise ValueError(
+                    f"ODBC driver '{self._credentials.driver}' not found on the system.\n"
+                    f"Available drivers: {', '.join(available_drivers)}\n"
+                    f"Please install the required driver or update AZURE_SQL_DRIVER "
+                    f"to use one of the available drivers."
+                )
+                
+            logger.info(f"Successfully validated ODBC driver: {self._credentials.driver}")
+            
+        except Exception as e:
+            if isinstance(e, ValueError):
+                raise
+            raise ValueError(f"Failed to validate ODBC driver: {str(e)}")
+
+    @retry_on_transient_error(max_attempts=3, initial_delay=1.0)
+    def _connect_with_retry(self, connection_string: str) -> pyodbc.Connection:
+        """Create a connection with retry logic for transient failures"""
+        return pyodbc.connect(connection_string)
+
+    @contextmanager
+    def create_connection(self) -> Generator[pyodbc.Connection, None, None]:
+        """Create a connection to SQL Server using pyodbc with retry logic"""
+        if not self._credentials.is_configured():
+            raise ValueError("SQL Server credentials not properly configured")
+        
+        # Build connection string with connection pooling and configurable options
+        connection_string = (
+            f"DRIVER={{{self._credentials.driver}}};"
+            f"SERVER={self._credentials.host},{self._credentials.port};"
+            f"DATABASE={self._credentials.database};"
+            f"UID={self._credentials.user};"
+            f"PWD={self._credentials.password};"
+        )
+        
+        # Add SSL/TLS settings
+        if self._credentials.encrypt:
+            connection_string += "Encrypt=yes;"
+        else:
+            connection_string += "Encrypt=no;"
+            
+        if self._credentials.trust_server_certificate:
+            connection_string += "TrustServerCertificate=yes;"
+        else:
+            connection_string += "TrustServerCertificate=no;"
+        
+        # Add performance and timeout settings
+        connection_string += (
+            f"ApplicationIntent=ReadOnly;"  # Optimize for read operations
+            f"ConnectTimeout={self._credentials.connection_timeout};"  # Connection timeout
+            f"LoginTimeout=10;"  # Login timeout in seconds
+        )
+        
+        # Enable ODBC connection pooling
+        pyodbc.pooling = True
+        
+        connection = self._connect_with_retry(connection_string)
+        try:
+            yield connection
+        finally:
+            connection.close()
+
+    @retry_on_transient_error(max_attempts=2, initial_delay=0.5)
+    def _execute_query_with_retry(self, cursor: pyodbc.Cursor, query: str) -> tuple[list[str], list[Any]]:
+        """Execute query with retry logic"""
+        cursor.execute(query)
+        columns = [column[0] for column in cursor.description] if cursor.description else []
+        rows = cursor.fetchall()
+        return columns, rows
+
+    def execute_query(
+        self, query: str, timeout: int | None = None
+    ) -> list[tuple[Any, ...]] | list[dict[str, Any]]:
+        """Execute a SQL Server query with timeout
+        
+        Args:
+            query: SQL query to execute
+            timeout: Query timeout in seconds
+            
+        Returns:
+            List of dictionaries containing query results
+            
+        Raises:
+            InvalidGeneratedCode: If query execution fails
+        """
+        timeout = timeout if timeout is not None else self.default_timeout
+        cursor = None
+        
+        try:
+            with self.create_connection() as conn:
+                conn.timeout = timeout
+                cursor = conn.cursor()
+                
+                try:
+                    columns, rows = self._execute_query_with_retry(cursor, query)
+                    
+                    # Convert to list of dictionaries
+                    results = []
+                    for row in rows:
+                        results.append(dict(zip(columns, row)))
+                    
+                    return cast(list[dict[str, Any]], results)
+                    
+                except pyodbc.Error as e:
+                    # Handle SQL Server specific errors
+                    raise InvalidGeneratedCode(
+                        f"SQL Server error: {str(e)}",
+                        code=query,
+                        exception=e,
+                        traceback_str=traceback.format_exc(),
+                    )
+                finally:
+                    if cursor:
+                        cursor.close()
+                    
+        except InvalidGeneratedCode:
+            raise  # Re-raise InvalidGeneratedCode as-is
+        except Exception as e:
+            raise InvalidGeneratedCode(
+                f"Query execution failed: {str(e)}",
+                code=query,
+                exception=e,
+                traceback_str=traceback.format_exc(),
+            )
+
+    def get_tables(self, timeout: int | None = None) -> list[str]:
+        """Fetch list of tables from SQL Server schema"""
+        timeout = timeout if timeout is not None else self.default_timeout
+        
+        try:
+            with self.create_connection() as conn:
+                conn.timeout = timeout
+                cursor = conn.cursor()
+                
+                try:
+                    # Query to get all tables and views in the specified schema
+                    query = f"""
+                        SELECT TABLE_NAME 
+                        FROM INFORMATION_SCHEMA.TABLES 
+                        WHERE TABLE_SCHEMA = '{self._credentials.db_schema}'
+                        AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')
+                        ORDER BY TABLE_NAME
+                    """
+                    
+                    cursor.execute(query)
+                    results = cursor.fetchall()
+                    
+                    tables = [row[0] for row in results]
+                    
+                    logger.info(f"Found {len(tables)} tables/views in schema {self._credentials.db_schema}")
+                    for table in tables:
+                        logger.info(f"Found table: {table}")
+                    
+                    return tables
+                finally:
+                    cursor.close()
+                
+        except Exception as e:
+            logger.error(f"Failed to fetch tables: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            return []
+
+    @functools.lru_cache(maxsize=8)
+    async def get_data(
+        self,
+        *table_names: str,
+        analyst_db: AnalystDB,
+        sample_size: int = 5000,
+        timeout: int | None = None,
+    ) -> list[str]:
+        """Load selected tables from SQL Server as pandas DataFrames
+        
+        Args:
+            table_names: List of table names to fetch
+            analyst_db: AnalystDB instance to register datasets
+            sample_size: Number of rows to sample from each table
+            timeout: Query timeout in seconds
+            
+        Returns:
+            List of successfully loaded table names
+        """
+        timeout = timeout if timeout is not None else self.default_timeout
+        
+        dataframes = []
+        try:
+            with self.create_connection() as conn:
+                conn.timeout = timeout
+                
+                for table in table_names:
+                    cursor = None
+                    try:
+                        cursor = conn.cursor()
+                        # Properly quote table name
+                        qualified_table = f"[{self._credentials.database}].[{self._credentials.db_schema}].[{table}]"
+                        logger.info(f"Fetching data from table: {qualified_table}")
+                        
+                        # Execute query to get data with TOP (SQL Server equivalent of LIMIT)
+                        query = f"""
+                            SELECT TOP {sample_size} * 
+                            FROM {qualified_table}
+                        """
+                        cursor.execute(query)
+                        
+                        # Get column names
+                        if not cursor.description:
+                            logger.warning(f"No columns found for table {table}")
+                            continue
+                            
+                        columns = [column[0] for column in cursor.description]
+                        
+                        # Fetch data in chunks to avoid memory issues
+                        rows = []
+                        while True:
+                            batch = cursor.fetchmany(1000)  # Fetch 1000 rows at a time
+                            if not batch:
+                                break
+                            rows.extend(batch)
+                            if len(rows) >= sample_size:
+                                rows = rows[:sample_size]
+                                break
+                        
+                        # Convert directly to Polars DataFrame with string schema
+                        # This avoids the pandas intermediate step
+                        if rows:
+                            # Convert all values to strings during construction
+                            str_rows = [[str(val) if val is not None else None for val in row] for row in rows]
+                            df = pl.DataFrame(
+                                data=str_rows,
+                                schema={col: pl.String for col in columns},
+                                orient="row"
+                            )
+                        else:
+                            # Create empty DataFrame with proper schema
+                            df = pl.DataFrame(
+                                schema={col: pl.String for col in columns}
+                            )
+                        
+                        logger.info(
+                            f"Successfully loaded table {table}: {len(df)} rows, {len(df.columns)} columns"
+                        )
+                        dataframes.append(AnalystDataset(name=table, data=df))
+                        
+                    except Exception as e:
+                        logger.error(f"Error loading table {table}: {str(e)}", exc_info=True)
+                        continue
+                    finally:
+                        if cursor:
+                            cursor.close()
+                
+                # Register datasets
+                names = []
+                for dataframe in dataframes:
+                    await analyst_db.register_dataset(
+                        dataframe, DataSourceType.DATABASE
+                    )
+                    names.append(dataframe.name)
+                return names
+                
+        except Exception as e:
+            logger.error(f"Error fetching SQL Server data: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            logger.error(f"Error details: {str(e)}")
+            return []
+
+    def get_system_prompt(self) -> ChatCompletionSystemMessageParam:
+        return ChatCompletionSystemMessageParam(
+            role="system",
+            content=SYSTEM_PROMPT_SQLSERVER.format(
+                database=self._credentials.database,
+                schema=self._credentials.db_schema,
+            ),
+        )
+
+
 def get_database_operator(app_infra: AppInfra) -> DatabaseOperator[Any]:
     if app_infra.database == "bigquery":
         credentials: (
             GoogleCredentialsBQ
             | SnowflakeCredentials
             | SAPDatasphereCredentials
+            | SQLServerCredentials
             | NoDatabaseCredentials
         )
         try:
@@ -789,6 +1156,16 @@ def get_database_operator(app_infra: AppInfra) -> DatabaseOperator[Any]:
         except (ValidationError, ValueError):
             logger.warning(
                 "SAP credentials not properly configured, falling back to no database"
+            )
+        return NoDatabaseOperator(NoDatabaseCredentials())
+    elif app_infra.database == "sqlserver":
+        try:
+            credentials = SQLServerCredentials()
+            if credentials.is_configured():
+                return SQLServerOperator(credentials)
+        except (ValidationError, ValueError):
+            logger.warning(
+                "SQL Server credentials not properly configured, falling back to no database"
             )
         return NoDatabaseOperator(NoDatabaseCredentials())
     else:
