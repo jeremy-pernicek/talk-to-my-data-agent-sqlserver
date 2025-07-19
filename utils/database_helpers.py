@@ -42,9 +42,19 @@ HAS_PYODBC = False
 SQL_DRIVER_ERROR = None
 
 try:
-    import pytds
-    HAS_PYTDS = True
-    _import_logger.info("pytds driver is available")
+    # First try to import from vendor directory (for DataRobot runtime)
+    try:
+        import sys
+        sys.path.insert(0, 'app_backend/vendor')
+        import pytds
+        HAS_PYTDS = True
+        _import_logger.info("pytds driver is available from vendor directory")
+    except ImportError:
+        # Fall back to system installation
+        sys.path.pop(0)  # Remove vendor path
+        import pytds
+        HAS_PYTDS = True
+        _import_logger.info("pytds driver is available from system installation")
 except ImportError as e:
     SQL_DRIVER_ERROR = f"pytds not available: {str(e)}"
     _import_logger.warning(SQL_DRIVER_ERROR)
