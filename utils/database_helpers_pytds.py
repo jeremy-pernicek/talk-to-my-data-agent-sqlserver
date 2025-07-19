@@ -80,7 +80,8 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                 
         except Exception as e:
             logger.error(f"Failed to connect to SQL Server: {str(e)}")
-            raise InvalidGeneratedCode(f"SQL Server connection failed: {str(e)}") from e
+            # Don't wrap connection errors
+            raise
     
     @retry_on_transient_error(max_attempts=2, initial_delay=0.5)
     def _execute_query_with_retry(self, cursor: pytds.Cursor, query: str) -> tuple[list[str], list[Any]]:
@@ -114,8 +115,8 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         
         try:
             with self.create_connection() as conn:
-                # Create cursor with as_dict=True to ensure dictionaries are returned
-                cursor = conn.cursor(as_dict=True)
+                # Create cursor (as_dict is already set on connection)
+                cursor = conn.cursor()
                 
                 try:
                     # Execute query (pytds doesn't support per-query timeout)
@@ -126,12 +127,8 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                     
                     # Convert to list of dictionaries
                     if cursor.description and rows:
-                        # Check if rows are already dictionaries
-                        if rows and isinstance(rows[0], dict):
-                            return rows
-                        else:
-                            # Convert tuples to dictionaries
-                            return [dict(zip(columns, row)) for row in rows]
+                        # With as_dict=True on connection, rows should be dictionaries
+                        return rows
                     else:
                         return []
                         
