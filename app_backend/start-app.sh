@@ -9,4 +9,8 @@ if [ "${DEV_MODE,,}" = "true" ]; then
   EXTRA_OPTS+=("--reload")
 fi
 
+# Add vendor directory to Python path for vendored packages
+export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}$(pwd)/vendor:$(pwd)/app_backend/vendor:$(pwd)/utils/vendor"
+echo "PYTHONPATH set to: $PYTHONPATH"
+
 python -m uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --log-level $LOG_LEVEL "${EXTRA_OPTS[@]}"

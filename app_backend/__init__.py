@@ -12,3 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Add vendor directory to Python path at application startup
+import sys
+import os
+
+vendor_dir = os.path.join(os.path.dirname(__file__), 'vendor')
+if os.path.exists(vendor_dir) and vendor_dir not in sys.path:
+    sys.path.insert(0, vendor_dir)
+    print(f"Added vendor directory to Python path: {vendor_dir}")

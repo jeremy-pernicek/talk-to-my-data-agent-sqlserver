@@ -25,18 +25,7 @@ from typing import Any, Generator, TYPE_CHECKING
 
 import polars as pl
 
-# Try to import pytds from vendor directory first, then system
-try:
-    import sys
-    sys.path.insert(0, 'app_backend/vendor')
-    import pytds
-    logger = logging.getLogger(__name__)
-    logger.info("Using pytds from vendor directory")
-except ImportError:
-    sys.path.pop(0)
-    import pytds
-    logger = logging.getLogger(__name__)
-    logger.info("Using pytds from system installation")
+import pytds
 
 from .database_helpers import DatabaseOperator, retry_on_transient_error
 from .prompts import SYSTEM_PROMPT_SQLSERVER
