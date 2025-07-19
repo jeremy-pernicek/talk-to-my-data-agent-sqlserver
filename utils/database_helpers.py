@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 import time
 import traceback
 from abc import ABC, abstractmethod
@@ -30,13 +31,40 @@ import snowflake.connector
 from google.cloud import bigquery
 from hdbcli import dbapi
 
-# Try to import pytds, but don't fail if it's not available
+# Get a temporary logger for import diagnostics
+_import_logger = logging.getLogger("DatabaseHelper.imports")
+
+# Try to import SQL Server drivers
+# DataRobot runtime may have different drivers available
+HAS_PYTDS = False
+HAS_PYMSSQL = False
+HAS_PYODBC = False
+SQL_DRIVER_ERROR = None
+
 try:
     import pytds
     HAS_PYTDS = True
-except ImportError:
-    HAS_PYTDS = False
+    _import_logger.info("pytds driver is available")
+except ImportError as e:
+    SQL_DRIVER_ERROR = f"pytds not available: {str(e)}"
+    _import_logger.warning(SQL_DRIVER_ERROR)
     pytds = None  # type: ignore
+
+try:
+    import pymssql
+    HAS_PYMSSQL = True
+    _import_logger.info("pymssql driver is available")
+except ImportError:
+    _import_logger.warning("pymssql not available")
+    pymssql = None  # type: ignore
+
+try:
+    import pyodbc
+    HAS_PYODBC = True
+    _import_logger.info("pyodbc driver is available")
+except ImportError:
+    _import_logger.warning("pyodbc not available")
+    pyodbc = None  # type: ignore
 from openai.types.chat.chat_completion_system_message_param import (
     ChatCompletionSystemMessageParam,
 )
@@ -73,9 +101,7 @@ def retry_on_transient_error(
     max_attempts: int = 3,
     initial_delay: float = 1.0,
     backoff_factor: float = 2.0,
-    transient_errors: tuple[type[Exception], ...] = (
-        (pytds.OperationalError, pytds.InterfaceError) if HAS_PYTDS else ()
-    ),
+    transient_errors: tuple[type[Exception], ...] = (),
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator to retry operations on transient database errors.
 
@@ -1164,19 +1190,42 @@ def get_database_operator(app_infra: AppInfra) -> DatabaseOperator[Any]:
         try:
             credentials = SQLServerCredentials()
             if credentials.is_configured():
+                # Log available SQL drivers
+                logger.info(f"SQL Server drivers available - pytds: {HAS_PYTDS}, pymssql: {HAS_PYMSSQL}, pyodbc: {HAS_PYODBC}")
+                
                 # Try to import the pytds implementation
                 try:
                     from .database_helpers_pytds import SQLServerOperatorPytds
-                    logger.info("Using pytds driver for SQL Server connection")
+                    logger.info("Using pytds driver for SQL Server connection from database_helpers_pytds module")
                     return SQLServerOperatorPytds(credentials)
-                except ImportError:
-                    # Fall back to inline implementation if separate module not available
-                    if not HAS_PYTDS:
+                except ImportError as e:
+                    logger.warning(f"Could not import database_helpers_pytds: {e}")
+                    
+                    # Check which SQL Server driver is available
+                    if HAS_PYTDS:
+                        logger.info("Using inline pytds implementation")
+                        return SQLServerOperator(credentials)
+                    elif HAS_PYODBC:
+                        logger.warning("pytds not available, but pyodbc is available - SQL Server support not implemented for pyodbc")
                         raise ImportError(
                             "SQL Server support requires python-tds package. "
-                            "Install with: pip install python-tds"
+                            "pyodbc is available but not currently supported. "
+                            f"Import error: {SQL_DRIVER_ERROR}"
                         )
-                    return SQLServerOperator(credentials)
+                    elif HAS_PYMSSQL:
+                        logger.warning("pytds not available, but pymssql is available - SQL Server support not implemented for pymssql")
+                        raise ImportError(
+                            "SQL Server support requires python-tds package. "
+                            "pymssql is available but not currently supported. "
+                            f"Import error: {SQL_DRIVER_ERROR}"
+                        )
+                    else:
+                        logger.error("No SQL Server drivers available in runtime environment")
+                        raise ImportError(
+                            "No SQL Server drivers available. "
+                            "DataRobot runtime environment does not include pytds, pymssql, or pyodbc. "
+                            f"Import error: {SQL_DRIVER_ERROR}"
+                        )
         except (ValidationError, ValueError):
             logger.warning(
                 "SQL Server credentials not properly configured, falling back to no database"

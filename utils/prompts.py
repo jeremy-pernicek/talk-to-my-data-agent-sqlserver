@@ -503,7 +503,7 @@ You will also be provided a small sample of data from each table. This will help
 You will also be provided a list of frequently occurring values from VARCHAR / categorical columns. This will be helpful when adding WHERE clauses in your query.
 Based on this metadata, build your query so that it will run without error and return some data.
 Your query should return not just the facts directly related to the question, but also return related information that could be part of the root cause or provide additional analytics value.
-Your query will be executed from Python using the pyodbc Python Connector.
+Your query will be executed from Python using the pytds Python Connector.
 
 SQL SERVER SPECIFIC CONSIDERATIONS:
 - Use TOP instead of LIMIT for limiting results (e.g., SELECT TOP 10 * FROM table)
