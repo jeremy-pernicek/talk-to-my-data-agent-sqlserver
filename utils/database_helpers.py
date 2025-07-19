@@ -880,7 +880,7 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
             user=self._credentials.user,
             password=self._credentials.password,
             database=self._credentials.database,
-            tds_version=pytds.TDS74,  # TDS 7.4 for SQL Server 2012+
+            tds_version=0x74000004,  # TDS 7.4 for SQL Server 2012+
             login_timeout=10,
             use_mars=False,
             autocommit=True,
