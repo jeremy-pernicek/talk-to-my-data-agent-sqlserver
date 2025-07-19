@@ -364,7 +364,7 @@ class SQLServerCredentials(DRCredentials):
         if not v:
             raise ValueError("Schema name cannot be empty")
         # Allow only alphanumeric, underscore, and dot for schema names
-        if not all(c.isalnum() or c in ('_', '.') for c in v):
+        if not all(c.isalnum() or c in ("_", ".") for c in v):
             raise ValueError(
                 "Schema name can only contain alphanumeric characters, underscores, and dots"
             )

@@ -75,19 +75,20 @@ def retry_on_transient_error(
     ),
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator to retry operations on transient database errors.
-    
+
     Args:
         max_attempts: Maximum number of retry attempts
         initial_delay: Initial delay between retries in seconds
         backoff_factor: Factor to multiply delay by after each retry
         transient_errors: Tuple of exception types to consider transient
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> T:
             delay = initial_delay
             last_exception = None
-            
+
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
@@ -107,14 +108,17 @@ def retry_on_transient_error(
                 except Exception:
                     # Non-transient errors should not be retried
                     raise
-            
+
             # If we get here, we've exhausted all retries
             if last_exception:
                 raise last_exception
             else:
-                raise RuntimeError(f"Unexpected error in retry logic for {func.__name__}")
-        
+                raise RuntimeError(
+                    f"Unexpected error in retry logic for {func.__name__}"
+                )
+
         return wrapper
+
     return decorator
 
 
@@ -832,7 +836,7 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
         self._connection_pool: list[pytds.Connection] = []
         self._max_pool_size = 5
         logger.info("Using pytds driver for SQL Server connection")
-    
+
     def _get_connection_from_pool(self) -> pytds.Connection | None:
         """Get a connection from the pool if available."""
         while self._connection_pool:
@@ -846,7 +850,7 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
                 # Connection is dead, try next one
                 continue
         return None
-    
+
     def _return_connection_to_pool(self, conn: pytds.Connection) -> None:
         """Return a connection to the pool if there's space."""
         if len(self._connection_pool) < self._max_pool_size:
@@ -871,7 +875,7 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
             tds_version="7.4",  # TDS 7.4 for SQL Server 2012+
             login_timeout=10,
             use_mars=False,
-            autocommit=True
+            autocommit=True,
         )
 
     @contextmanager
@@ -879,17 +883,17 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
         """Get a connection from the pool or create a new one."""
         if not self._credentials.is_configured():
             raise ValueError("SQL Server credentials not properly configured")
-        
+
         # Try to get connection from pool first
         connection = self._get_connection_from_pool()
-        
+
         # If no connection available in pool, create new one
         if connection is None:
             connection = self._create_new_connection()
             logger.debug("Created new SQL Server connection")
         else:
             logger.debug("Reused connection from pool")
-        
+
         try:
             yield connection
         finally:
@@ -897,10 +901,14 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
             self._return_connection_to_pool(connection)
 
     @retry_on_transient_error(max_attempts=2, initial_delay=0.5)
-    def _execute_query_with_retry(self, cursor: pytds.Cursor, query: str) -> tuple[list[str], list[Any]]:
+    def _execute_query_with_retry(
+        self, cursor: pytds.Cursor, query: str
+    ) -> tuple[list[str], list[Any]]:
         """Execute query with retry logic"""
         cursor.execute(query)
-        columns = [column[0] for column in cursor.description] if cursor.description else []
+        columns = (
+            [column[0] for column in cursor.description] if cursor.description else []
+        )
         rows = cursor.fetchall()
         return columns, rows
 
@@ -908,34 +916,34 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
         self, query: str, timeout: int | None = None
     ) -> list[tuple[Any, ...]] | list[dict[str, Any]]:
         """Execute a SQL Server query with timeout
-        
+
         Args:
             query: SQL query to execute
             timeout: Query timeout in seconds
-            
+
         Returns:
             List of dictionaries containing query results
-            
+
         Raises:
             InvalidGeneratedCode: If query execution fails
         """
         timeout = timeout if timeout is not None else self.default_timeout
         cursor = None
-        
+
         try:
             with self.create_connection() as conn:
                 cursor = conn.cursor()
-                
+
                 try:
                     columns, rows = self._execute_query_with_retry(cursor, query)
-                    
+
                     # Convert to list of dictionaries
                     results = []
                     for row in rows:
                         results.append(dict(zip(columns, row)))
-                    
+
                     return cast(list[dict[str, Any]], results)
-                    
+
                 except (pytds.Error, pytds.OperationalError, pytds.InterfaceError) as e:
                     # Handle SQL Server specific errors
                     raise InvalidGeneratedCode(
@@ -947,7 +955,7 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
                 finally:
                     if cursor:
                         cursor.close()
-                    
+
         except InvalidGeneratedCode:
             raise  # Re-raise InvalidGeneratedCode as-is
         except Exception as e:
@@ -961,11 +969,11 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
     def get_tables(self, timeout: int | None = None) -> list[str]:
         """Fetch list of tables from SQL Server schema"""
         timeout = timeout if timeout is not None else self.default_timeout
-        
+
         try:
             with self.create_connection() as conn:
                 cursor = conn.cursor()
-                
+
                 try:
                     # Query to get all tables and views in the specified schema
                     query = f"""
@@ -975,20 +983,22 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
                         AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')
                         ORDER BY TABLE_NAME
                     """
-                    
+
                     cursor.execute(query)
                     results = cursor.fetchall()
-                    
+
                     tables = [row[0] for row in results]
-                    
-                    logger.info(f"Found {len(tables)} tables/views in schema {self._credentials.db_schema}")
+
+                    logger.info(
+                        f"Found {len(tables)} tables/views in schema {self._credentials.db_schema}"
+                    )
                     for table in tables:
                         logger.info(f"Found table: {table}")
-                    
+
                     return tables
                 finally:
                     cursor.close()
-                
+
         except Exception as e:
             logger.error(f"Failed to fetch tables: {str(e)}")
             logger.error(f"Error type: {type(e)}")
@@ -1003,18 +1013,18 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
         timeout: int | None = None,
     ) -> list[str]:
         """Load selected tables from SQL Server as pandas DataFrames
-        
+
         Args:
             table_names: List of table names to fetch
             analyst_db: AnalystDB instance to register datasets
             sample_size: Number of rows to sample from each table
             timeout: Query timeout in seconds
-            
+
         Returns:
             List of successfully loaded table names
         """
         timeout = timeout if timeout is not None else self.default_timeout
-        
+
         dataframes = []
         try:
             with self.create_connection() as conn:
@@ -1025,55 +1035,60 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
                         # Properly quote table name
                         qualified_table = f"[{self._credentials.database}].[{self._credentials.db_schema}].[{table}]"
                         logger.info(f"Fetching data from table: {qualified_table}")
-                        
+
                         # Execute query to get data with TOP (SQL Server equivalent of LIMIT)
                         query = f"""
                             SELECT TOP {sample_size} * 
                             FROM {qualified_table}
                         """
                         cursor.execute(query)
-                        
+
                         # Get column names
                         if not cursor.description:
                             logger.warning(f"No columns found for table {table}")
                             continue
-                            
+
                         columns = [column[0] for column in cursor.description]
-                        
+
                         # Fetch all data at once (pytds handles this efficiently)
                         rows = cursor.fetchall()
                         # Limit to sample_size if needed
                         if len(rows) > sample_size:
                             rows = rows[:sample_size]
-                        
+
                         # Convert directly to Polars DataFrame with string schema
                         # This avoids the pandas intermediate step
                         if rows:
                             # Convert all values to strings during construction
-                            str_rows = [[str(val) if val is not None else None for val in row] for row in rows]
+                            str_rows = [
+                                [str(val) if val is not None else None for val in row]
+                                for row in rows
+                            ]
                             df = pl.DataFrame(
                                 data=str_rows,
                                 schema={col: pl.String for col in columns},
-                                orient="row"
+                                orient="row",
                             )
                         else:
                             # Create empty DataFrame with proper schema
                             df = pl.DataFrame(
                                 schema={col: pl.String for col in columns}
                             )
-                        
+
                         logger.info(
                             f"Successfully loaded table {table}: {len(df)} rows, {len(df.columns)} columns"
                         )
                         dataframes.append(AnalystDataset(name=table, data=df))
-                        
+
                     except Exception as e:
-                        logger.error(f"Error loading table {table}: {str(e)}", exc_info=True)
+                        logger.error(
+                            f"Error loading table {table}: {str(e)}", exc_info=True
+                        )
                         continue
                     finally:
                         if cursor:
                             cursor.close()
-                
+
                 # Register datasets
                 names = []
                 for dataframe in dataframes:
@@ -1082,7 +1097,7 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
                     )
                     names.append(dataframe.name)
                 return names
-                
+
         except Exception as e:
             logger.error(f"Error fetching SQL Server data: {str(e)}")
             logger.error(f"Error type: {type(e)}")

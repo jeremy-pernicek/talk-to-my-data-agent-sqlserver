@@ -633,10 +633,10 @@ def get_database_credentials(
                         """
                     )
                 )
-            
+
             if test_credentials:
                 import pytds
-                
+
                 try:
                     conn = pytds.connect(
                         server=credentials.host,
@@ -647,7 +647,7 @@ def get_database_credentials(
                         tds_version="7.4",
                         login_timeout=10,
                         use_mars=False,
-                        autocommit=True
+                        autocommit=True,
                     )
                     conn.close()
                     logger.info("SQL Server connection test successful using pytds")
@@ -662,7 +662,7 @@ def get_database_credentials(
                             """
                         )
                     ) from e
-            
+
             return credentials
 
     except pydantic.ValidationError as exc:
