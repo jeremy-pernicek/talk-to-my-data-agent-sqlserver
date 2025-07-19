@@ -513,6 +513,17 @@ SQL SERVER SPECIFIC CONSIDERATIONS:
 - Use DATEDIFF() for date calculations
 - CAST and CONVERT functions are available for type conversion
 - Remember that SQL Server uses T-SQL syntax
+- GROUP BY RULES: When using aggregate functions (COUNT, SUM, AVG, MAX, MIN), all non-aggregated columns in the SELECT must be in the GROUP BY clause
+- Example correct syntax:
+  SELECT Region, Product, AVG(Sales) as AvgSales, COUNT(*) as RecordCount
+  FROM SalesTable
+  WHERE DateColumn >= DATEADD(month, -3, GETDATE())
+  GROUP BY Region, Product
+  ORDER BY AvgSales DESC
+- Example incorrect syntax that will fail:
+  SELECT Region, Product, Customer, AVG(Sales) as AvgSales  -- ERROR: Customer not in GROUP BY!
+  FROM SalesTable
+  GROUP BY Region, Product
 
 RESPONSE:
 Your response shall be a single, executable T-SQL query that retrieves, analyzes, aggregates and returns the information required to answer the user's question.

@@ -86,15 +86,23 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
     @retry_on_transient_error(max_attempts=2, initial_delay=0.5)
     def _execute_query_with_retry(self, cursor: pytds.Cursor, query: str) -> tuple[list[str], list[Any]]:
         """Execute query with retry logic"""
-        logger.debug(f"Executing query: {query[:200]}...")  # Log first 200 chars
+        import time
+        
+        logger.debug(f"Executing query: {query[:1000]}...")  # Log first 1000 chars
+        
+        # Measure query execution time
+        start_time = time.time()
         cursor.execute(query)
+        execution_time = time.time() - start_time
         
         # Get column names
         columns = [col[0] for col in cursor.description] if cursor.description else []
         
         # Fetch all rows
         rows = cursor.fetchall()
-        logger.debug(f"Query returned {len(rows)} rows")
+        fetch_time = time.time() - start_time - execution_time
+        
+        logger.info(f"Query executed in {execution_time:.3f}s, fetched {len(rows)} rows in {fetch_time:.3f}s")
         
         return columns, rows
     
@@ -138,7 +146,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                         
         except Exception as e:
             logger.error(f"Query execution failed: {str(e)}")
-            logger.error(f"Query was: {query[:500]}...")  # Log more of the query for debugging
+            logger.error(f"Query was: {query[:1500]}...")  # Log more of the query for debugging
             raise InvalidGeneratedCode(
                 f"Failed to execute SQL query: {str(e)}"
             ) from e
