@@ -1161,20 +1161,28 @@ def get_database_operator(app_infra: AppInfra) -> DatabaseOperator[Any]:
             )
         return NoDatabaseOperator(NoDatabaseCredentials())
     elif app_infra.database == "sqlserver":
-        if not HAS_PYTDS:
-            logger.error(
-                "SQL Server support requires python-tds package. "
-                "Install with: pip install python-tds"
-            )
-            return NoDatabaseOperator(NoDatabaseCredentials())
         try:
             credentials = SQLServerCredentials()
             if credentials.is_configured():
-                return SQLServerOperator(credentials)
+                # Try to import the pytds implementation
+                try:
+                    from .database_helpers_pytds import SQLServerOperatorPytds
+                    logger.info("Using pytds driver for SQL Server connection")
+                    return SQLServerOperatorPytds(credentials)
+                except ImportError:
+                    # Fall back to inline implementation if separate module not available
+                    if not HAS_PYTDS:
+                        raise ImportError(
+                            "SQL Server support requires python-tds package. "
+                            "Install with: pip install python-tds"
+                        )
+                    return SQLServerOperator(credentials)
         except (ValidationError, ValueError):
             logger.warning(
                 "SQL Server credentials not properly configured, falling back to no database"
             )
+        except ImportError as e:
+            logger.error(f"Failed to initialize SQL Server support: {e}")
         return NoDatabaseOperator(NoDatabaseCredentials())
     else:
         return NoDatabaseOperator(NoDatabaseCredentials())
