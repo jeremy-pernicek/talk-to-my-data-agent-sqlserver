@@ -832,11 +832,16 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
         credentials: SQLServerCredentials,
         default_timeout: int = _DEFAULT_DB_QUERY_TIMEOUT,
     ):
+        if not HAS_PYTDS:
+            raise ImportError(
+                "SQL Server support requires python-tds package. "
+                "Install with: pip install python-tds"
+            )
         if not credentials.is_configured():
             raise ValueError("SQL Server credentials not properly configured")
         self._credentials = credentials
         self.default_timeout = default_timeout
-        self._connection_pool: list[pytds.Connection] = []
+        self._connection_pool: list[pytds.Connection] = []  # type: ignore
         self._max_pool_size = 5
         logger.info("Using pytds driver for SQL Server connection")
 
@@ -1156,6 +1161,12 @@ def get_database_operator(app_infra: AppInfra) -> DatabaseOperator[Any]:
             )
         return NoDatabaseOperator(NoDatabaseCredentials())
     elif app_infra.database == "sqlserver":
+        if not HAS_PYTDS:
+            logger.error(
+                "SQL Server support requires python-tds package. "
+                "Install with: pip install python-tds"
+            )
+            return NoDatabaseOperator(NoDatabaseCredentials())
         try:
             credentials = SQLServerCredentials()
             if credentials.is_configured():
