@@ -635,34 +635,22 @@ def get_database_credentials(
                 )
             
             if test_credentials:
-                import pyodbc
-                
-                # Build connection string matching production configuration
-                connection_string = (
-                    f"DRIVER={{{credentials.driver}}};"
-                    f"SERVER={credentials.host},{credentials.port};"
-                    f"DATABASE={credentials.database};"
-                    f"UID={credentials.user};"
-                    f"PWD={credentials.password};"
-                )
-                
-                # Add SSL/TLS settings to match production
-                if credentials.encrypt:
-                    connection_string += "Encrypt=yes;"
-                else:
-                    connection_string += "Encrypt=no;"
-                    
-                if credentials.trust_server_certificate:
-                    connection_string += "TrustServerCertificate=yes;"
-                else:
-                    connection_string += "TrustServerCertificate=no;"
-                
-                # Add connection timeout
-                connection_string += f"ConnectTimeout={credentials.connection_timeout};"
+                import pytds
                 
                 try:
-                    conn = pyodbc.connect(connection_string, timeout=credentials.connection_timeout)
+                    conn = pytds.connect(
+                        server=credentials.host,
+                        port=credentials.port,
+                        user=credentials.user,
+                        password=credentials.password,
+                        database=credentials.database,
+                        tds_version="7.4",
+                        login_timeout=10,
+                        use_mars=False,
+                        autocommit=True
+                    )
                     conn.close()
+                    logger.info("SQL Server connection test successful using pytds")
                 except Exception as e:
                     logger.exception("Failed to test SQL Server connection")
                     raise ValueError(

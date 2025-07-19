@@ -27,6 +27,7 @@ from typing import Any, Callable, Generator, Generic, TypeVar, cast
 import pandas as pd
 import polars as pl
 import pyodbc
+import pytds
 import snowflake.connector
 from google.cloud import bigquery
 from hdbcli import dbapi
@@ -69,6 +70,8 @@ def retry_on_transient_error(
     transient_errors: tuple[type[Exception], ...] = (
         pyodbc.OperationalError,
         pyodbc.InterfaceError,
+        pytds.OperationalError,
+        pytds.InterfaceError,
     ),
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator to retry operations on transient database errors.
@@ -826,90 +829,75 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
             raise ValueError("SQL Server credentials not properly configured")
         self._credentials = credentials
         self.default_timeout = default_timeout
-        
-        # Validate ODBC driver is available
-        self._validate_odbc_driver()
+        self._connection_pool: list[pytds.Connection] = []
+        self._max_pool_size = 5
+        logger.info("Using pytds driver for SQL Server connection")
     
-    def _validate_odbc_driver(self) -> None:
-        """Validate that the specified ODBC driver is installed on the system.
-        
-        Raises:
-            ValueError: If the ODBC driver is not found
-        """
-        try:
-            # Get list of available ODBC drivers
-            available_drivers = pyodbc.drivers()
-            
-            if not available_drivers:
-                raise ValueError(
-                    "No ODBC drivers found on the system. Please install an appropriate "
-                    "SQL Server ODBC driver (e.g., 'ODBC Driver 18 for SQL Server')."
-                )
-            
-            if self._credentials.driver not in available_drivers:
-                raise ValueError(
-                    f"ODBC driver '{self._credentials.driver}' not found on the system.\n"
-                    f"Available drivers: {', '.join(available_drivers)}\n"
-                    f"Please install the required driver or update AZURE_SQL_DRIVER "
-                    f"to use one of the available drivers."
-                )
-                
-            logger.info(f"Successfully validated ODBC driver: {self._credentials.driver}")
-            
-        except Exception as e:
-            if isinstance(e, ValueError):
-                raise
-            raise ValueError(f"Failed to validate ODBC driver: {str(e)}")
+    def _get_connection_from_pool(self) -> pytds.Connection | None:
+        """Get a connection from the pool if available."""
+        while self._connection_pool:
+            conn = self._connection_pool.pop()
+            try:
+                # Test if connection is still alive
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                return conn
+            except Exception:
+                # Connection is dead, try next one
+                continue
+        return None
+    
+    def _return_connection_to_pool(self, conn: pytds.Connection) -> None:
+        """Return a connection to the pool if there's space."""
+        if len(self._connection_pool) < self._max_pool_size:
+            try:
+                # Test if connection is still good before returning to pool
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                self._connection_pool.append(conn)
+            except Exception:
+                # Connection is bad, don't return to pool
+                pass
 
     @retry_on_transient_error(max_attempts=3, initial_delay=1.0)
-    def _connect_with_retry(self, connection_string: str) -> pyodbc.Connection:
-        """Create a connection with retry logic for transient failures"""
-        return pyodbc.connect(connection_string)
+    def _create_new_connection(self) -> pytds.Connection:
+        """Create a new pytds connection with retry logic for transient failures."""
+        return pytds.connect(
+            server=self._credentials.host,
+            port=self._credentials.port,
+            user=self._credentials.user,
+            password=self._credentials.password,
+            database=self._credentials.database,
+            tds_version="7.4",  # TDS 7.4 for SQL Server 2012+
+            login_timeout=10,
+            use_mars=False,
+            autocommit=True
+        )
 
     @contextmanager
-    def create_connection(self) -> Generator[pyodbc.Connection, None, None]:
-        """Create a connection to SQL Server using pyodbc with retry logic"""
+    def create_connection(self) -> Generator[pytds.Connection, None, None]:
+        """Get a connection from the pool or create a new one."""
         if not self._credentials.is_configured():
             raise ValueError("SQL Server credentials not properly configured")
         
-        # Build connection string with connection pooling and configurable options
-        connection_string = (
-            f"DRIVER={{{self._credentials.driver}}};"
-            f"SERVER={self._credentials.host},{self._credentials.port};"
-            f"DATABASE={self._credentials.database};"
-            f"UID={self._credentials.user};"
-            f"PWD={self._credentials.password};"
-        )
+        # Try to get connection from pool first
+        connection = self._get_connection_from_pool()
         
-        # Add SSL/TLS settings
-        if self._credentials.encrypt:
-            connection_string += "Encrypt=yes;"
+        # If no connection available in pool, create new one
+        if connection is None:
+            connection = self._create_new_connection()
+            logger.debug("Created new SQL Server connection")
         else:
-            connection_string += "Encrypt=no;"
-            
-        if self._credentials.trust_server_certificate:
-            connection_string += "TrustServerCertificate=yes;"
-        else:
-            connection_string += "TrustServerCertificate=no;"
+            logger.debug("Reused connection from pool")
         
-        # Add performance and timeout settings
-        connection_string += (
-            f"ApplicationIntent=ReadOnly;"  # Optimize for read operations
-            f"ConnectTimeout={self._credentials.connection_timeout};"  # Connection timeout
-            f"LoginTimeout=10;"  # Login timeout in seconds
-        )
-        
-        # Enable ODBC connection pooling
-        pyodbc.pooling = True
-        
-        connection = self._connect_with_retry(connection_string)
         try:
             yield connection
         finally:
-            connection.close()
+            # Return connection to pool instead of closing
+            self._return_connection_to_pool(connection)
 
     @retry_on_transient_error(max_attempts=2, initial_delay=0.5)
-    def _execute_query_with_retry(self, cursor: pyodbc.Cursor, query: str) -> tuple[list[str], list[Any]]:
+    def _execute_query_with_retry(self, cursor: pytds.Cursor, query: str) -> tuple[list[str], list[Any]]:
         """Execute query with retry logic"""
         cursor.execute(query)
         columns = [column[0] for column in cursor.description] if cursor.description else []
@@ -936,7 +924,6 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
         
         try:
             with self.create_connection() as conn:
-                conn.timeout = timeout
                 cursor = conn.cursor()
                 
                 try:
@@ -949,7 +936,7 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
                     
                     return cast(list[dict[str, Any]], results)
                     
-                except pyodbc.Error as e:
+                except (pytds.Error, pytds.OperationalError, pytds.InterfaceError) as e:
                     # Handle SQL Server specific errors
                     raise InvalidGeneratedCode(
                         f"SQL Server error: {str(e)}",
@@ -977,7 +964,6 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
         
         try:
             with self.create_connection() as conn:
-                conn.timeout = timeout
                 cursor = conn.cursor()
                 
                 try:
@@ -1032,8 +1018,6 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
         dataframes = []
         try:
             with self.create_connection() as conn:
-                conn.timeout = timeout
-                
                 for table in table_names:
                     cursor = None
                     try:
@@ -1056,16 +1040,11 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
                             
                         columns = [column[0] for column in cursor.description]
                         
-                        # Fetch data in chunks to avoid memory issues
-                        rows = []
-                        while True:
-                            batch = cursor.fetchmany(1000)  # Fetch 1000 rows at a time
-                            if not batch:
-                                break
-                            rows.extend(batch)
-                            if len(rows) >= sample_size:
-                                rows = rows[:sample_size]
-                                break
+                        # Fetch all data at once (pytds handles this efficiently)
+                        rows = cursor.fetchall()
+                        # Limit to sample_size if needed
+                        if len(rows) > sample_size:
+                            rows = rows[:sample_size]
                         
                         # Convert directly to Polars DataFrame with string schema
                         # This avoids the pandas intermediate step
