@@ -67,7 +67,8 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                 database=self._credentials.database,
                 timeout=self._credentials.connection_timeout,
                 login_timeout=self._credentials.connection_timeout,
-                as_dict=True  # Return rows as dictionaries
+                as_dict=True,  # Return rows as dictionaries
+                autocommit=True  # Enable autocommit to prevent transaction issues
             )
             
             logger.info(f"Successfully connected to SQL Server at {self._credentials.host}")
@@ -84,6 +85,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
     @retry_on_transient_error(max_attempts=2, initial_delay=0.5)
     def _execute_query_with_retry(self, cursor: pytds.Cursor, query: str) -> tuple[list[str], list[Any]]:
         """Execute query with retry logic"""
+        logger.debug(f"Executing query: {query[:200]}...")  # Log first 200 chars
         cursor.execute(query)
         
         # Get column names
@@ -91,6 +93,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         
         # Fetch all rows
         rows = cursor.fetchall()
+        logger.debug(f"Query returned {len(rows)} rows")
         
         return columns, rows
     
@@ -111,7 +114,8 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         
         try:
             with self.create_connection() as conn:
-                cursor = conn.cursor()
+                # Create cursor with as_dict=True to ensure dictionaries are returned
+                cursor = conn.cursor(as_dict=True)
                 
                 try:
                     # Execute query (pytds doesn't support per-query timeout)
@@ -122,8 +126,12 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                     
                     # Convert to list of dictionaries
                     if cursor.description and rows:
-                        # rows are already dictionaries if as_dict=True was used
-                        return rows
+                        # Check if rows are already dictionaries
+                        if rows and isinstance(rows[0], dict):
+                            return rows
+                        else:
+                            # Convert tuples to dictionaries
+                            return [dict(zip(columns, row)) for row in rows]
                     else:
                         return []
                         
@@ -133,6 +141,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                         
         except Exception as e:
             logger.error(f"Query execution failed: {str(e)}")
+            logger.error(f"Query was: {query[:500]}...")  # Log more of the query for debugging
             raise InvalidGeneratedCode(
                 f"Failed to execute SQL query: {str(e)}"
             ) from e
