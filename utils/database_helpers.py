@@ -26,7 +26,6 @@ from typing import Any, Callable, Generator, Generic, TypeVar, cast
 
 import pandas as pd
 import polars as pl
-import pyodbc
 import pytds
 import snowflake.connector
 from google.cloud import bigquery
@@ -68,8 +67,6 @@ def retry_on_transient_error(
     initial_delay: float = 1.0,
     backoff_factor: float = 2.0,
     transient_errors: tuple[type[Exception], ...] = (
-        pyodbc.OperationalError,
-        pyodbc.InterfaceError,
         pytds.OperationalError,
         pytds.InterfaceError,
     ),
