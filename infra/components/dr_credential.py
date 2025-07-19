@@ -644,7 +644,7 @@ def get_database_credentials(
                         user=credentials.user,
                         password=credentials.password,
                         database=credentials.database,
-                        tds_version="7.4",
+                        tds_version=pytds.TDS74,
                         login_timeout=10,
                         use_mars=False,
                         autocommit=True,

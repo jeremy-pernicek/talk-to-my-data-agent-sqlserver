@@ -26,10 +26,17 @@ from typing import Any, Callable, Generator, Generic, TypeVar, cast
 
 import pandas as pd
 import polars as pl
-import pytds
 import snowflake.connector
 from google.cloud import bigquery
 from hdbcli import dbapi
+
+# Try to import pytds, but don't fail if it's not available
+try:
+    import pytds
+    HAS_PYTDS = True
+except ImportError:
+    HAS_PYTDS = False
+    pytds = None  # type: ignore
 from openai.types.chat.chat_completion_system_message_param import (
     ChatCompletionSystemMessageParam,
 )
@@ -67,8 +74,7 @@ def retry_on_transient_error(
     initial_delay: float = 1.0,
     backoff_factor: float = 2.0,
     transient_errors: tuple[type[Exception], ...] = (
-        pytds.OperationalError,
-        pytds.InterfaceError,
+        (pytds.OperationalError, pytds.InterfaceError) if HAS_PYTDS else ()
     ),
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Decorator to retry operations on transient database errors.
@@ -869,7 +875,7 @@ class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
             user=self._credentials.user,
             password=self._credentials.password,
             database=self._credentials.database,
-            tds_version="7.4",  # TDS 7.4 for SQL Server 2012+
+            tds_version=pytds.TDS74,  # TDS 7.4 for SQL Server 2012+
             login_timeout=10,
             use_mars=False,
             autocommit=True,
