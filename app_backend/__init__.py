@@ -13,10 +13,10 @@
 # limitations under the License.
 
 # Add vendor directory to Python path at application startup
-import sys
 import os
+import sys
 
-vendor_dir = os.path.join(os.path.dirname(__file__), 'vendor')
+vendor_dir = os.path.join(os.path.dirname(__file__), "vendor")
 if os.path.exists(vendor_dir) and vendor_dir not in sys.path:
     sys.path.insert(0, vendor_dir)
     print(f"Added vendor directory to Python path: {vendor_dir}")

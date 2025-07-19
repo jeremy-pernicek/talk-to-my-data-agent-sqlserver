@@ -6,6 +6,7 @@
 
 .. moduleauthor:: Mikhail Denisenko <denisenkom@gmail.com>
 """
+
 from __future__ import annotations
 
 import base64
@@ -128,7 +129,9 @@ class NtlmAuth(AuthProtocol):
     :type ntlm_compatibility: int
     """
 
-    def __init__(self, user_name: str, password: str, ntlm_compatibility: int = 3) -> None:
+    def __init__(
+        self, user_name: str, password: str, ntlm_compatibility: int = 3
+    ) -> None:
         self._user_name = user_name
         if "\\" in user_name:
             domain, self._user = user_name.split("\\", 1)

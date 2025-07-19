@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 import time as _time
-from datetime import tzinfo, timedelta
+from datetime import timedelta, tzinfo
 
 ZERO = timedelta(0)
 HOUR = timedelta(hours=1)
@@ -16,7 +16,7 @@ HOUR = timedelta(hours=1)
 class FixedOffsetTimezone(tzinfo):
     """Fixed offset in minutes east from UTC."""
 
-    def __init__(self, offset: float, name: str | None=None) -> None:
+    def __init__(self, offset: float, name: str | None = None) -> None:
         self.__offset = timedelta(minutes=offset)
         self.__name = name
 

@@ -1,20 +1,20 @@
 """
 This module implements wrapper for Windows SSPI API
 """
-import logging
 
+import logging
 from ctypes import (  # type: ignore # needs fixing
+    POINTER,
+    WINFUNCTYPE,
+    Structure,
+    byref,
     c_ulong,
+    c_ulonglong,
     c_ushort,
     c_void_p,
-    c_ulonglong,
-    POINTER,
-    Structure,
     c_wchar_p,
-    WINFUNCTYPE,
-    windll,
-    byref,
     cast,
+    windll,
 )
 
 logger = logging.getLogger(__name__)

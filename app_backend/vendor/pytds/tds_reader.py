@@ -1,28 +1,28 @@
 """
 This module implements TdsReader class
 """
+
 from __future__ import annotations
 
 import struct
 import typing
-from typing import Tuple, Any
+from typing import Any, Tuple
 
 from pytds import tds_base
 from pytds.collate import Collation, ucs2_codec
 from pytds.tds_base import (
-    readall,
-    readall_fast,
+    _byte,
     _header,
+    _int8_le,
     _int_le,
+    _smallint_le,
+    _uint8_le,
     _uint_be,
     _uint_le,
-    _uint8_le,
-    _int8_le,
-    _byte,
-    _smallint_le,
     _usmallint_le,
+    readall,
+    readall_fast,
 )
-
 
 if typing.TYPE_CHECKING:
     from pytds.tds_session import _TdsSession

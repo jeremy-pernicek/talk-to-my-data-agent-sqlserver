@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 import typing
+from typing import Any
 
 try:
     import OpenSSL.SSL  # type: ignore # needs fixing
@@ -94,8 +94,8 @@ def verify_cb(conn, cert, err_num, err_depth, ret_code: int) -> bool:
 
 
 def is_san_matching(san: str, host_name: str) -> bool:
-    for item in san.split(','):
-        dnsentry = item.strip().lstrip('DNS:').strip()
+    for item in san.split(","):
+        dnsentry = item.strip().lstrip("DNS:").strip()
         # SANs are usually have form like: DNS:hostname
         if dnsentry == host_name:
             return True

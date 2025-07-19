@@ -2,9 +2,12 @@
 This module implements client interface for MSSQL server browser which provides
 information about MSSQL server instances running on the host via UDP socket at port 1434.
 """
+
 from __future__ import annotations
+
 import socket
 import typing
+
 from . import tds_base
 from .tds_base import logger
 

@@ -2,13 +2,14 @@
 This file implements Session Multiplex Protocol used by MARS connections
 Protocol documentation https://msdn.microsoft.com/en-us/library/cc219643.aspx
 """
+
 from __future__ import annotations
 
-import struct
-import logging
-import threading
-import socket
 import errno
+import logging
+import socket
+import struct
+import threading
 from typing import Dict, Tuple
 
 from . import tds_base
@@ -27,7 +28,7 @@ except ImportError:
                 self[i] = val
 
     bitarray = BitArray
-from .tds_base import Error, skipall, TransportProtocol
+from .tds_base import Error, TransportProtocol, skipall
 
 logger = logging.getLogger(__name__)
 

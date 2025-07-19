@@ -1,23 +1,23 @@
 """
 This module implements various data types supported by Microsoft SQL Server
 """
+
 from __future__ import annotations
 
-import itertools
 import datetime
 import decimal
-import struct
-import re
-import uuid
 import functools
-from io import StringIO, BytesIO
+import itertools
+import re
+import struct
+import uuid
+from io import BytesIO, StringIO
 from typing import Callable
 
 from pytds.tds_base import read_chunks
-from . import tds_base
-from .collate import ucs2_codec, raw_collation
-from . import tz
 
+from . import tds_base, tz
+from .collate import raw_collation, ucs2_codec
 
 _flt4_struct = struct.Struct("f")
 _flt8_struct = struct.Struct("d")
@@ -1414,9 +1414,9 @@ class SmallDateTimeSerializer(BasePrimitiveTypeSerializer, BaseDateTimeSerialize
         return dt.to_pydatetime().replace(tzinfo=tzinfo)
 
 
-SmallDateTimeSerializer.instance = (
-    small_date_time_serializer
-) = SmallDateTimeSerializer()
+SmallDateTimeSerializer.instance = small_date_time_serializer = (
+    SmallDateTimeSerializer()
+)
 
 
 class DateTime(SqlValueMetaclass):

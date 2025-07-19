@@ -2,10 +2,11 @@
 This module implements various row strategies.
 E.g. row strategy that generated dictionaries or named tuples for rows.
 """
+
 import collections
 import keyword
 import re
-from typing import Iterable, Callable, Any, Tuple, NamedTuple, Dict, List
+from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Tuple
 
 # RowGenerator is a callable which takes a list of column values and
 # returns an object representing that row
@@ -17,21 +18,21 @@ RowStrategy = Callable[[Iterable[str]], RowGenerator]
 
 
 def tuple_row_strategy(
-    column_names: Iterable[str]
+    column_names: Iterable[str],
 ) -> Callable[[Iterable[Any]], Tuple[Any, ...]]:
     """Tuple row strategy, rows returned as tuples, default"""
     return tuple
 
 
 def list_row_strategy(
-    column_names: Iterable[str]
+    column_names: Iterable[str],
 ) -> Callable[[Iterable[Any]], List[Any]]:
     """List row strategy, rows returned as lists"""
     return list
 
 
 def dict_row_strategy(
-    column_names: Iterable[str]
+    column_names: Iterable[str],
 ) -> Callable[[Iterable[Any]], Dict[str, Any]]:
     """Dict row strategy, rows returned as dictionaries"""
     # replace empty column names with indices
@@ -53,7 +54,7 @@ def is_valid_identifier(name: str) -> bool:
 
 
 def namedtuple_row_strategy(
-    column_names: Iterable[str]
+    column_names: Iterable[str],
 ) -> Callable[[Iterable[Any]], NamedTuple]:
     """Namedtuple row strategy, rows returned as named tuples
 
@@ -74,7 +75,7 @@ def namedtuple_row_strategy(
 
 
 def recordtype_row_strategy(
-    column_names: Iterable[str]
+    column_names: Iterable[str],
 ) -> Callable[[Iterable[Any]], Any]:
     """Recordtype row strategy, rows returned as recordtypes
 
@@ -82,9 +83,13 @@ def recordtype_row_strategy(
     with col<number>_
     """
     try:
-        from namedlist import namedlist as recordtype  # type: ignore # needs fixing # optional dependency
+        from namedlist import (
+            namedlist as recordtype,  # type: ignore # needs fixing # optional dependency
+        )
     except ImportError:
-        from recordtype import recordtype  # type: ignore # needs fixing # optional dependency
+        from recordtype import (
+            recordtype,  # type: ignore # needs fixing # optional dependency
+        )
     # replace empty column names with placeholders
     column_names = [
         name if is_valid_identifier(name) else "col%s_" % idx

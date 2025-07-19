@@ -5,6 +5,7 @@
 
 .. moduleauthor:: Mikhail Denisenko <denisenkom@gmail.com>
 """
+
 from __future__ import annotations
 
 import datetime
@@ -13,7 +14,7 @@ import socket
 import struct
 import typing
 from collections import deque
-from typing import Protocol, Iterable, TypedDict, Tuple, Any
+from typing import Any, Iterable, Protocol, Tuple, TypedDict
 
 import pytds
 from pytds.collate import ucs2_codec
@@ -32,8 +33,8 @@ TDS74 = 0x74000004
 
 
 if typing.TYPE_CHECKING:
-    from pytds.tds_session import _TdsSession
     import OpenSSL
+    from pytds.tds_session import _TdsSession
 
 
 def IS_TDS7_PLUS(x: _TdsSession):
@@ -487,7 +488,7 @@ class DatabaseError(Error):
                 )
             )
         else:
-            return "SQL Server message %d, severity %d, state %d, " "line %d:\n%s" % (
+            return "SQL Server message %d, severity %d, state %d, line %d:\n%s" % (
                 self.number,
                 self.severity,
                 self.state,
@@ -817,41 +818,31 @@ class TransportProtocol(Protocol):
     # def is_connected(self) -> bool:
     #    ...
 
-    def close(self) -> None:
-        ...
+    def close(self) -> None: ...
 
-    def gettimeout(self) -> float | None:
-        ...
+    def gettimeout(self) -> float | None: ...
 
-    def settimeout(self, timeout: float | None) -> None:
-        ...
+    def settimeout(self, timeout: float | None) -> None: ...
 
-    def sendall(self, buf: bytes, flags: int = 0) -> None:
-        ...
+    def sendall(self, buf: bytes, flags: int = 0) -> None: ...
 
-    def recv(self, size: int) -> bytes:
-        ...
+    def recv(self, size: int) -> bytes: ...
 
     def recv_into(
         self, buf: bytearray | memoryview, size: int = 0, flags: int = 0
-    ) -> int:
-        ...
+    ) -> int: ...
 
 
 class LoadBalancer(Protocol):
-    def choose(self) -> Iterable[str]:
-        ...
+    def choose(self) -> Iterable[str]: ...
 
 
 class AuthProtocol(Protocol):
-    def create_packet(self) -> bytes:
-        ...
+    def create_packet(self) -> bytes: ...
 
-    def handle_next(self, packet: bytes) -> bytes | None:
-        ...
+    def handle_next(self, packet: bytes) -> bytes | None: ...
 
-    def close(self) -> None:
-        ...
+    def close(self) -> None: ...
 
 
 # packet header

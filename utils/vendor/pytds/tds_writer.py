@@ -1,21 +1,22 @@
 """
 This module implements TdsWriter class
 """
+
 import struct
 
 from pytds import tds_base
 from pytds.collate import Collation, ucs2_codec
 from pytds.tds_base import (
-    _uint_be,
     _byte,
-    _smallint_le,
-    _usmallint_le,
-    _usmallint_be,
-    _int_le,
-    _uint_le,
-    _int8_le,
-    _uint8_le,
     _header,
+    _int8_le,
+    _int_le,
+    _smallint_le,
+    _uint8_le,
+    _uint_be,
+    _uint_le,
+    _usmallint_be,
+    _usmallint_le,
 )
 
 

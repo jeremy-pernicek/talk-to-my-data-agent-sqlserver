@@ -43,24 +43,27 @@ SQL_DRIVER_ERROR = None
 
 try:
     import pytds
+
     HAS_PYTDS = True
     _import_logger.info("pytds driver is available")
 except ImportError as e:
     SQL_DRIVER_ERROR = f"pytds not available: {str(e)}"
     _import_logger.warning(SQL_DRIVER_ERROR)
-    
+
     # Log diagnostic information
-    import sys
     import os
+    import sys
+
     _import_logger.warning(f"Python path: {sys.path}")
     _import_logger.warning(f"Current working directory: {os.getcwd()}")
     _import_logger.warning(f"Script location: {__file__}")
     _import_logger.warning(f"PYTHONPATH env: {os.environ.get('PYTHONPATH', 'Not set')}")
-    
+
     pytds = None  # type: ignore
 
 try:
     import pymssql
+
     HAS_PYMSSQL = True
     _import_logger.info("pymssql driver is available")
 except ImportError:
@@ -69,33 +72,34 @@ except ImportError:
 
 try:
     import pyodbc
+
     HAS_PYODBC = True
     _import_logger.info("pyodbc driver is available")
 except ImportError:
     _import_logger.warning("pyodbc not available")
     pyodbc = None  # type: ignore
-from openai.types.chat.chat_completion_system_message_param import (
+from openai.types.chat.chat_completion_system_message_param import (  # noqa: E402
     ChatCompletionSystemMessageParam,
 )
-from pydantic import ValidationError
+from pydantic import ValidationError  # noqa: E402
 
-from utils.analyst_db import AnalystDB, DataSourceType
-from utils.code_execution import InvalidGeneratedCode
-from utils.credentials import (
+from utils.analyst_db import AnalystDB, DataSourceType  # noqa: E402
+from utils.code_execution import InvalidGeneratedCode  # noqa: E402
+from utils.credentials import (  # noqa: E402
     GoogleCredentialsBQ,
     NoDatabaseCredentials,
     SAPDatasphereCredentials,
     SnowflakeCredentials,
     SQLServerCredentials,
 )
-from utils.logging_helper import get_logger
-from utils.prompts import (
+from utils.logging_helper import get_logger  # noqa: E402
+from utils.prompts import (  # noqa: E402
     SYSTEM_PROMPT_BIGQUERY,
     SYSTEM_PROMPT_SAP_DATASPHERE,
     SYSTEM_PROMPT_SNOWFLAKE,
     SYSTEM_PROMPT_SQLSERVER,
 )
-from utils.schema import (
+from utils.schema import (  # noqa: E402
     AnalystDataset,
     AppInfra,
 )
@@ -1200,36 +1204,47 @@ def get_database_operator(app_infra: AppInfra) -> DatabaseOperator[Any]:
             credentials = SQLServerCredentials()
             if credentials.is_configured():
                 # Log available SQL drivers
-                logger.info(f"SQL Server drivers available - pytds: {HAS_PYTDS}, pymssql: {HAS_PYMSSQL}, pyodbc: {HAS_PYODBC}")
-                
+                logger.info(
+                    f"SQL Server drivers available - pytds: {HAS_PYTDS}, pymssql: {HAS_PYMSSQL}, pyodbc: {HAS_PYODBC}"
+                )
+
                 # Try to import the pytds implementation
                 try:
                     from .database_helpers_pytds import SQLServerOperatorPytds
-                    logger.info("Using pytds driver for SQL Server connection from database_helpers_pytds module")
+
+                    logger.info(
+                        "Using pytds driver for SQL Server connection from database_helpers_pytds module"
+                    )
                     return SQLServerOperatorPytds(credentials)
                 except ImportError as e:
                     logger.warning(f"Could not import database_helpers_pytds: {e}")
-                    
+
                     # Check which SQL Server driver is available
                     if HAS_PYTDS:
                         logger.info("Using inline pytds implementation")
                         return SQLServerOperator(credentials)
                     elif HAS_PYODBC:
-                        logger.warning("pytds not available, but pyodbc is available - SQL Server support not implemented for pyodbc")
+                        logger.warning(
+                            "pytds not available, but pyodbc is available - SQL Server support not implemented for pyodbc"
+                        )
                         raise ImportError(
                             "SQL Server support requires python-tds package. "
                             "pyodbc is available but not currently supported. "
                             f"Import error: {SQL_DRIVER_ERROR}"
                         )
                     elif HAS_PYMSSQL:
-                        logger.warning("pytds not available, but pymssql is available - SQL Server support not implemented for pymssql")
+                        logger.warning(
+                            "pytds not available, but pymssql is available - SQL Server support not implemented for pymssql"
+                        )
                         raise ImportError(
                             "SQL Server support requires python-tds package. "
                             "pymssql is available but not currently supported. "
                             f"Import error: {SQL_DRIVER_ERROR}"
                         )
                     else:
-                        logger.error("No SQL Server drivers available in runtime environment")
+                        logger.error(
+                            "No SQL Server drivers available in runtime environment"
+                        )
                         raise ImportError(
                             "No SQL Server drivers available. "
                             "DataRobot runtime environment does not include pytds, pymssql, or pyodbc. "

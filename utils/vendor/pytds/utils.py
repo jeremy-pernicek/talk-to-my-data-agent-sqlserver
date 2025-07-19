@@ -2,7 +2,9 @@
 This module contains generic utility functions which don't have dependencies on any
 other modules.
 """
+
 from __future__ import annotations
+
 import logging
 import time
 import typing

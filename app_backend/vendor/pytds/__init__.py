@@ -1,72 +1,70 @@
 """DB-SIG compliant module for communicating with MS SQL servers"""
+
 from __future__ import annotations
 
-from collections import deque
 import datetime
 import os
 import socket
 import time
 import uuid
 import warnings
+from collections import deque
 from typing import Any
 
-from pytds.tds_types import TzInfoFactoryType
-from . import lcid
-from . import connection_pool
 import pytds.tz
-from .connection import MarsConnection, NonMarsConnection, Connection
+from pytds.tds_types import TzInfoFactoryType
+
+from . import connection_pool, instance_browser_client, lcid, tds_base, tls, utils
+from . import login as pytds_login
+from .connection import Connection, MarsConnection, NonMarsConnection
 from .cursor import Cursor  # noqa: F401 # export for backward compatibility
-from .login import KerberosAuth, SspiAuth, AuthProtocol  # noqa: F401 # export for backward compatibility
+from .login import (  # noqa: F401 # export for backward compatibility
+    AuthProtocol,
+    KerberosAuth,
+    SspiAuth,
+)
 from .row_strategies import (
-    tuple_row_strategy,
-    list_row_strategy,  # noqa: F401 # export for backward compatibility
+    RowStrategy,
     dict_row_strategy,
+    list_row_strategy,  # noqa: F401 # export for backward compatibility
     namedtuple_row_strategy,  # noqa: F401 # export for backward compatibility
     recordtype_row_strategy,  # noqa: F401 # export for backward compatibility
-    RowStrategy,
+    tuple_row_strategy,
 )
-from .tds_socket import _TdsSocket
-from . import instance_browser_client
-from . import tds_base
-from . import utils
-from . import login as pytds_login
 from .tds_base import (
-    Error,  # noqa: F401 # export for backward compatibility
-    LoginError,  # noqa: F401 # export for backward compatibility
-    DatabaseError,  # noqa: F401 # export for backward compatibility
-    ProgrammingError,  # noqa: F401 # export for backward compatibility
-    IntegrityError,  # noqa: F401 # export for backward compatibility
-    DataError,  # noqa: F401 # export for backward compatibility
-    InternalError,  # noqa: F401 # export for backward compatibility
-    InterfaceError,  # noqa: F401 # export for backward compatibility
-    TimeoutError,  # noqa: F401 # export for backward compatibility
-    OperationalError,  # noqa: F401 # export for backward compatibility
-    NotSupportedError,  # noqa: F401 # export for backward compatibility
-    Warning,  # noqa: F401 # export for backward compatibility
+    BINARY,  # noqa: F401 # export for backward compatibility
+    DATETIME,  # noqa: F401 # export for backward compatibility
+    DECIMAL,  # noqa: F401 # export for backward compatibility
+    INTEGER,  # noqa: F401 # export for backward compatibility
+    NUMBER,  # noqa: F401 # export for backward compatibility
+    REAL,  # noqa: F401 # export for backward compatibility
+    ROWID,  # noqa: F401 # export for backward compatibility
+    STRING,  # noqa: F401 # export for backward compatibility
+    XML,  # noqa: F401 # export for backward compatibility
     ClosedConnectionError,  # noqa: F401 # export for backward compatibility
     Column,  # noqa: F401 # export for backward compatibility
+    DatabaseError,  # noqa: F401 # export for backward compatibility
+    DataError,  # noqa: F401 # export for backward compatibility
+    Error,  # noqa: F401 # export for backward compatibility
+    IntegrityError,  # noqa: F401 # export for backward compatibility
+    InterfaceError,  # noqa: F401 # export for backward compatibility
+    InternalError,  # noqa: F401 # export for backward compatibility
+    LoginError,  # noqa: F401 # export for backward compatibility
+    NotSupportedError,  # noqa: F401 # export for backward compatibility
+    OperationalError,  # noqa: F401 # export for backward compatibility
     PreLoginEnc,  # noqa: F401 # export for backward compatibility
-)
-
-from .tds_types import TableValuedParam, Binary  # noqa: F401 # export for backward compatibility
-
-from .tds_base import (
-    ROWID,  # noqa: F401 # export for backward compatibility
-    DECIMAL,  # noqa: F401 # export for backward compatibility
-    STRING,  # noqa: F401 # export for backward compatibility
-    BINARY,  # noqa: F401 # export for backward compatibility
-    NUMBER,  # noqa: F401 # export for backward compatibility
-    DATETIME,  # noqa: F401 # export for backward compatibility
-    INTEGER,  # noqa: F401 # export for backward compatibility
-    REAL,  # noqa: F401 # export for backward compatibility
-    XML,  # noqa: F401 # export for backward compatibility
-    output,  # noqa: F401 # export for backward compatibility
+    ProgrammingError,  # noqa: F401 # export for backward compatibility
+    TimeoutError,  # noqa: F401 # export for backward compatibility
+    Warning,  # noqa: F401 # export for backward compatibility
     default,  # noqa: F401 # export for backward compatibility
+    logger,
+    output,  # noqa: F401 # export for backward compatibility
 )
-
-
-from . import tls
-from .tds_base import logger
+from .tds_socket import _TdsSocket
+from .tds_types import (  # noqa: F401 # export for backward compatibility
+    Binary,
+    TableValuedParam,
+)
 
 __author__ = "Mikhail Denisenko <denisenkom@gmail.com>"
 
@@ -314,9 +312,9 @@ def connect(
         autocommit,
     )
     tzinfo_factory = None if use_tz is None else pytds.tz.FixedOffsetTimezone
-    assert (
-        row_strategy is None or as_dict is None
-    ), "Both row_startegy and as_dict were specified, you should use either one or another"
+    assert row_strategy is None or as_dict is None, (
+        "Both row_startegy and as_dict were specified, you should use either one or another"
+    )
     if as_dict:
         row_strategy = dict_row_strategy
     elif row_strategy is not None:

@@ -1,16 +1,16 @@
 """
 This module implements DBAPI connection classes for both MARS and non-MARS variants
 """
+
 from __future__ import annotations
 
 import typing
 import warnings
 import weakref
-from . import tds_base
-from .tds_socket import _TdsSocket
-from . import row_strategies
+
+from . import connection_pool, row_strategies, tds_base
 from .tds_base import logger
-from . import connection_pool
+from .tds_socket import _TdsSocket
 
 if typing.TYPE_CHECKING:
     from .cursor import Cursor, NonMarsCursor, _MarsCursor
@@ -23,42 +23,31 @@ class Connection(typing.Protocol):
     """
 
     @property
-    def autocommit(self) -> bool:
-        ...
+    def autocommit(self) -> bool: ...
 
     @autocommit.setter
-    def autocommit(self, value: bool) -> None:
-        ...
+    def autocommit(self, value: bool) -> None: ...
 
     @property
-    def isolation_level(self) -> int:
-        ...
+    def isolation_level(self) -> int: ...
 
     @isolation_level.setter
-    def isolation_level(self, level: int) -> None:
-        ...
+    def isolation_level(self, level: int) -> None: ...
 
-    def __enter__(self) -> BaseConnection:
-        ...
+    def __enter__(self) -> BaseConnection: ...
 
-    def __exit__(self, *args) -> None:
-        ...
+    def __exit__(self, *args) -> None: ...
 
-    def commit(self) -> None:
-        ...
+    def commit(self) -> None: ...
 
-    def rollback(self) -> None:
-        ...
+    def rollback(self) -> None: ...
 
-    def close(self) -> None:
-        ...
+    def close(self) -> None: ...
 
     @property
-    def mars_enabled(self) -> bool:
-        ...
+    def mars_enabled(self) -> bool: ...
 
-    def cursor(self) -> Cursor:
-        ...
+    def cursor(self) -> Cursor: ...
 
 
 class BaseConnection(Connection):

@@ -4,15 +4,13 @@ This module implements TdsSocket class
 
 from __future__ import annotations
 
-import logging
 import datetime
+import logging
 
-from . import tds_base
-from . import tds_types
-from . import tls
-from .tds_base import PreLoginEnc, _TdsEnv, _TdsLogin, Route
+from . import tds_base, tds_types, tls
 from .row_strategies import list_row_strategy
 from .smp import SmpManager
+from .tds_base import PreLoginEnc, Route, _TdsEnv, _TdsLogin
 
 # _token_map is needed by sqlalchemy_pytds connector
 from .tds_session import (

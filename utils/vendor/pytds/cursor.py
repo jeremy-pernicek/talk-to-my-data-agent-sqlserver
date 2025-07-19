@@ -1,6 +1,7 @@
 """
 This module implements DBAPI cursor classes for MARS and non-MARS
 """
+
 from __future__ import annotations
 
 import collections
@@ -10,12 +11,11 @@ import warnings
 from collections.abc import Iterable
 
 import pytds
+from pytds import tds_base
 from pytds.connection import Connection, MarsConnection, NonMarsConnection
+from pytds.tds_socket import _TdsSession
 from pytds.tds_types import NVarCharType, TzInfoFactoryType
 
-from pytds.tds_socket import _TdsSession
-
-from pytds import tds_base
 from .tds_base import logger
 
 
@@ -25,42 +25,32 @@ class Cursor(typing.Protocol, Iterable):
     It is implemented by MARS and non-MARS cursor classes.
     """
 
-    def __enter__(self) -> Cursor:
-        ...
+    def __enter__(self) -> Cursor: ...
 
-    def __exit__(self, *args) -> None:
-        ...
+    def __exit__(self, *args) -> None: ...
 
-    def get_proc_outputs(self) -> list[typing.Any]:
-        ...
+    def get_proc_outputs(self) -> list[typing.Any]: ...
 
     def callproc(
         self,
         procname: tds_base.InternalProc | str,
         parameters: dict[str, typing.Any] | tuple[typing.Any, ...] = (),
-    ) -> list[typing.Any]:
-        ...
+    ) -> list[typing.Any]: ...
 
     @property
-    def return_value(self) -> int | None:
-        ...
+    def return_value(self) -> int | None: ...
 
     @property
-    def spid(self) -> int:
-        ...
+    def spid(self) -> int: ...
 
     @property
-    def connection(self) -> Connection | None:
-        ...
+    def connection(self) -> Connection | None: ...
 
-    def get_proc_return_status(self) -> int | None:
-        ...
+    def get_proc_return_status(self) -> int | None: ...
 
-    def cancel(self) -> None:
-        ...
+    def cancel(self) -> None: ...
 
-    def close(self) -> None:
-        ...
+    def close(self) -> None: ...
 
     def execute(
         self,
@@ -69,8 +59,7 @@ class Cursor(typing.Protocol, Iterable):
         | tuple[typing.Any, ...]
         | dict[str, typing.Any]
         | None = (),
-    ) -> Cursor:
-        ...
+    ) -> Cursor: ...
 
     def executemany(
         self,
@@ -78,8 +67,7 @@ class Cursor(typing.Protocol, Iterable):
         params_seq: Iterable[
             list[typing.Any] | tuple[typing.Any, ...] | dict[str, typing.Any]
         ],
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def execute_scalar(
         self,
@@ -88,26 +76,21 @@ class Cursor(typing.Protocol, Iterable):
         | tuple[typing.Any, ...]
         | dict[str, typing.Any]
         | None = None,
-    ) -> typing.Any:
-        ...
+    ) -> typing.Any: ...
 
-    def nextset(self) -> bool | None:
-        ...
+    def nextset(self) -> bool | None: ...
 
     @property
-    def rowcount(self) -> int:
-        ...
+    def rowcount(self) -> int: ...
 
     @property
-    def description(self):
-        ...
+    def description(self): ...
 
-    def set_stream(self, column_idx: int, stream) -> None:
-        ...
+    def set_stream(self, column_idx: int, stream) -> None: ...
 
     @property
     def messages(
-        self
+        self,
     ) -> (
         list[
             tuple[
@@ -118,29 +101,22 @@ class Cursor(typing.Protocol, Iterable):
             ]
         ]
         | None
-    ):
-        ...
+    ): ...
 
     @property
-    def native_description(self):
-        ...
+    def native_description(self): ...
 
-    def fetchone(self) -> typing.Any:
-        ...
+    def fetchone(self) -> typing.Any: ...
 
-    def fetchmany(self, size=None) -> list[typing.Any]:
-        ...
+    def fetchmany(self, size=None) -> list[typing.Any]: ...
 
-    def fetchall(self) -> list[typing.Any]:
-        ...
+    def fetchall(self) -> list[typing.Any]: ...
 
     @staticmethod
-    def setinputsizes(sizes=None) -> None:
-        ...
+    def setinputsizes(sizes=None) -> None: ...
 
     @staticmethod
-    def setoutputsize(size=None, column=0) -> None:
-        ...
+    def setoutputsize(size=None, column=0) -> None: ...
 
     def copy_to(
         self,
@@ -158,8 +134,7 @@ class Cursor(typing.Protocol, Iterable):
         schema: str | None = None,
         null_string: str | None = None,
         data: Iterable[tuple[typing.Any, ...]] | None = None,
-    ):
-        ...
+    ): ...
 
 
 class BaseCursor(Cursor, collections.abc.Iterator):
@@ -438,7 +413,7 @@ class BaseCursor(Cursor, collections.abc.Iterator):
 
     @property
     def messages(
-        self
+        self,
     ) -> (
         list[
             tuple[

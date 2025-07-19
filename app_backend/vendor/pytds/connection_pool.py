@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import datetime
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
 
 from pytds.tds_base import AuthProtocol
-from pytds.tds_socket import _TdsSocket, _TdsSession
+from pytds.tds_socket import _TdsSession, _TdsSocket
 
 PoolKeyType = Tuple[
     Optional[str],
