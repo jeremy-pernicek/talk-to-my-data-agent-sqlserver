@@ -33,6 +33,7 @@ from utils.credentials import (
     NoDatabaseCredentials,
     SAPDatasphereCredentials,
     SnowflakeCredentials,
+    SQLServerCredentials,
 )
 from utils.schema import (
     DatabaseConnectionType,
@@ -220,6 +221,58 @@ def get_credential_runtime_parameter_values(
                 "key": "SAP_DATASPHERE_SCHEMA",
                 "type": "string",
                 "value": credentials.db_schema,
+            },
+        ]
+        credential_rtp_dicts = [rtp for rtp in rtps if rtp["value"] is not None]
+    elif isinstance(credentials, SQLServerCredentials):
+        rtps = [
+            {
+                "key": "db_credential",
+                "type": "basic_credential",
+                "value": {
+                    "user": credentials.user,
+                    "password": credentials.password,
+                },
+            },
+            {
+                "key": "AZURE_SQL_HOST",
+                "type": "string",
+                "value": credentials.host,
+            },
+            {
+                "key": "AZURE_SQL_PORT",
+                "type": "string",
+                "value": credentials.port,
+            },
+            {
+                "key": "AZURE_SQL_DATABASE",
+                "type": "string",
+                "value": credentials.database,
+            },
+            {
+                "key": "AZURE_SQL_SCHEMA",
+                "type": "string",
+                "value": credentials.db_schema,
+            },
+            {
+                "key": "AZURE_SQL_DRIVER",
+                "type": "string",
+                "value": credentials.driver,
+            },
+            {
+                "key": "AZURE_SQL_TRUST_CERT",
+                "type": "string",
+                "value": str(credentials.trust_server_certificate),
+            },
+            {
+                "key": "AZURE_SQL_ENCRYPT",
+                "type": "string",
+                "value": str(credentials.encrypt),
+            },
+            {
+                "key": "AZURE_SQL_CONN_TIMEOUT",
+                "type": "string",
+                "value": str(credentials.connection_timeout),
             },
         ]
         credential_rtp_dicts = [rtp for rtp in rtps if rtp["value"] is not None]
@@ -455,12 +508,14 @@ def get_database_credentials(
     SnowflakeCredentials
     | GoogleCredentialsBQ
     | SAPDatasphereCredentials
+    | SQLServerCredentials
     | NoDatabaseCredentials
 ):
     credentials: (
         SnowflakeCredentials
         | GoogleCredentialsBQ
         | SAPDatasphereCredentials
+        | SQLServerCredentials
         | NoDatabaseCredentials
     )
 
@@ -564,6 +619,45 @@ def get_database_credentials(
                     connection.close()
                 except Exception as e:
                     raise ValueError("Failed to connect to SAP Data Sphere.") from e
+            return credentials
+        elif database == "sqlserver":
+            credentials = SQLServerCredentials()
+            if not credentials.is_configured():
+                logger.error("SQL Server credentials not fully configured")
+                raise ValueError(
+                    textwrap.dedent(
+                        f"""
+                        Your SQL Server credentials and environment variables were not configured properly.
+                        
+                        Please validate your environment variables or check {__file__} for details.
+                        """
+                    )
+                )
+            
+            if test_credentials:
+                # Test SQL Server connection using pytds
+                try:
+                    import pytds
+                    
+                    conn = pytds.connect(
+                        server=credentials.host,
+                        port=credentials.port,
+                        user=credentials.user,
+                        password=credentials.password,
+                        database=credentials.database,
+                        timeout=credentials.connection_timeout,
+                        login_timeout=credentials.connection_timeout,
+                        as_dict=True,
+                    )
+                    # Test with simple query
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT 1")
+                    cursor.close()
+                    conn.close()
+                except ImportError:
+                    logger.warning("pytds not available for testing SQL Server connection")
+                except Exception as e:
+                    raise ValueError(f"Failed to connect to SQL Server: {str(e)}") from e
             return credentials
 
     except pydantic.ValidationError as exc:
