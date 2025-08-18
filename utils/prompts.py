@@ -439,6 +439,23 @@ Include comments to explain your code.
 Your response shall be formatted as JSON with the following fields:
 1) code: T-SQL code that will execute and return the data
 2) description: A brief description of how the code works, and how the results can be interpreted to answer the question.
+
+SQL SERVER ENVIRONMENT:
+Database: {database}
+Schema: {schema}
+
+NECESSARY CONSIDERATIONS:
+Carefully consider the metadata and the sample data when constructing your query to avoid errors or an empty result.
+For example, seemingly numeric columns might contain non-numeric formatting such as $1,234.91 which could require special handling.
+When performing date operations on a date column, consider casting that column as a DATE for error redundancy.
+To ensure case sensitivity of column names, use quotes around column names.
+This query will be executed using the pytds Python Connector. Make sure the query will be compatible with the pytds Python Connector.
+Always reference tables fully quoted and qualified, as in '[{database}].[{schema}].[TABLE_NAME]' and quote any column names in the query.
+
+REATTEMPT:
+It's possible that your query will fail due to a SQL error or return an empty result set.
+If this happens, you will be provided the failed query and the error message.
+Take this failed SQL code and error message into consideration when building your query so that the problem doesn't happen again.
 """
 
 SYSTEM_PROMPT_REPHRASE_MESSAGE = """
