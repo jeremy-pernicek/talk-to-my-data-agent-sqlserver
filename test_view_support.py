@@ -13,7 +13,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "utils", "vendor"))
 
 try:
     import pytds
-
+    
+    # Test that pytds is working
+    assert hasattr(pytds, 'connect'), "pytds should have connect method"
     print("✓ pytds import successful")
 except ImportError as e:
     print(f"✗ pytds import failed: {e}")

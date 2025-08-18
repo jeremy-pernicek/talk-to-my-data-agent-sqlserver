@@ -76,7 +76,7 @@ def find_file_to_patch():
         )
         if result.stdout:
             return result.stdout.strip().split("\n")[0]
-    except:
+    except Exception:
         pass
 
     return None

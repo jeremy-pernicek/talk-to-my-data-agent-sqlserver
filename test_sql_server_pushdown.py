@@ -80,7 +80,7 @@ def test_query_optimization():
         # This will fail connection, but we can test the methods
         try:
             SQLServerOperatorPytds(mock_creds, pushdown_config=config)
-        except:
+        except Exception:
             print("○ Connection failed as expected with mock credentials")
 
         # Test the optimization method directly if available
@@ -222,7 +222,9 @@ def test_integration_compatibility():
     try:
         # Test that the main database helpers still work
         from database_helpers import get_database_operator
-
+        
+        # Test the function exists
+        assert callable(get_database_operator), "get_database_operator should be callable"
         print("✓ Main database helpers import successfully")
 
         # Test that SQL Server is still registered
@@ -236,7 +238,9 @@ def test_integration_compatibility():
 
         # Test that credentials still work
         from credentials import SQLServerCredentials
-
+        
+        # Test the class exists and is callable
+        assert callable(SQLServerCredentials), "SQLServerCredentials should be callable"
         print("✓ SQLServerCredentials import successfully")
 
         return True
