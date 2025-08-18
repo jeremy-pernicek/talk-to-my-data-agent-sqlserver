@@ -12,9 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from openai.types.chat.chat_completion_system_message_param import (
-    ChatCompletionSystemMessageParam,
-)
+try:
+    from openai.types.chat.chat_completion_system_message_param import (
+        ChatCompletionSystemMessageParam,
+    )
+except ImportError:
+    # Fallback for static analysis or missing openai
+    from typing import Any
+
+    ChatCompletionSystemMessageParam = Any  # type: ignore
 
 SYSTEM_PROMPT_ANALYST = """
 **Role:**  
@@ -382,3 +388,4 @@ Your response shall be formatted as JSON with the following fields:
 1) code: T-SQL code that will execute and return the data
 2) description: A brief description of how the code works, and how the results can be interpreted to answer the question.
 """
+

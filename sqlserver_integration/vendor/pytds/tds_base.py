@@ -34,6 +34,7 @@ TDS74 = 0x74000004
 
 if typing.TYPE_CHECKING:
     import OpenSSL
+
     from pytds.tds_session import _TdsSession
 
 
