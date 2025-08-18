@@ -429,25 +429,35 @@ PERFORMANCE OPTIMIZATION FOR DATE AGGREGATIONS:
 - Use: CONVERT(VARCHAR(7), [As Of Date], 120) -- Returns 'YYYY-MM' format, 10x faster
 - Or use: YEAR([As Of Date]) as Year, MONTH([As Of Date]) as Month -- Even faster for separate columns
 
-Example optimized time-series query:
-  SELECT 
+Example optimized time-series query for TTMD_Deposit_History (millions of rows):
+  SELECT TOP 12  -- Always limit results for large tables
     -- Fast date grouping methods:
-    CONVERT(VARCHAR(7), [Date Column], 120) as YearMonth,  -- Fastest for 'YYYY-MM'
-    -- OR use separate columns:
-    -- YEAR([Date Column]) as Year,
-    -- MONTH([Date Column]) as Month,
-    SUM([Amount]) as Total,
-    COUNT(*) as TransactionCount
-  FROM [Database].[Schema].[Table]
-  WHERE [Date Column] >= DATEADD(month, -12, GETDATE())  -- Always filter first
-  GROUP BY CONVERT(VARCHAR(7), [Date Column], 120)
+    CONVERT(VARCHAR(7), [As Of Date], 120) as YearMonth,  -- Fastest for 'YYYY-MM'
+    AVG([MTD Average Balance]) as AvgBalance,
+    COUNT(*) as RecordCount
+  FROM [DataScience].[ML_EXPLORE].[TTMD_Deposit_History] WITH (NOLOCK)  -- Read uncommitted for speed
+  WHERE [As Of Date] >= DATEADD(month, -3, GETDATE())  -- CRITICAL: Only last 3 months for performance
+    AND [As Of Date] < GETDATE()  -- Exclude future dates
+  GROUP BY CONVERT(VARCHAR(7), [As Of Date], 120)
   ORDER BY YearMonth DESC
+  OPTION (MAXDOP 4, HASH GROUP)  -- Force parallel processing
+
+PERFORMANCE TIPS FOR TTMD_Deposit_History:
+- This table has MILLIONS of rows - queries without proper filters take 50+ seconds
+- ALWAYS use: WHERE [As Of Date] >= DATEADD(month, -3, GETDATE()) 
+- Consider WITH (NOLOCK) for read-only analytics to avoid locking
+- Use TOP to limit aggregated results
+- Add OPTION (MAXDOP 4) for parallel processing
 
 CRITICAL: For aggregations on large tables with date columns:
 1. ALWAYS add a WHERE clause to limit date range BEFORE aggregation
 2. Use CONVERT(VARCHAR(7), date, 120) instead of FORMAT() for month grouping
 3. Consider using indexed computed columns for frequently grouped date parts
-4. For deposits/transactions, default to last 6 months unless specified otherwise
+4. For deposits/transactions, default to last 3 months unless specified otherwise (6 months max)
+5. For the TTMD_Deposit_History table specifically:
+   - This table has millions of rows - ALWAYS use date filters
+   - Default to: WHERE [As Of Date] >= DATEADD(month, -3, GETDATE())
+   - Never aggregate without a WHERE clause on this table
 
 - Example incorrect syntax that will fail:
   SELECT Region, Product, Customer, AVG(Sales) as AvgSales  -- ERROR: Customer not in GROUP BY!

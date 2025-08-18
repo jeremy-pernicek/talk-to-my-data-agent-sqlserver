@@ -219,6 +219,34 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                         f"Added TOP {max_rows} clause to query for optimization"
                     )
 
+        # CRITICAL OPTIMIZATION: Force WHERE clause for TTMD_Deposit_History if missing
+        # This table has millions of rows and causes 50+ second queries without filters
+        if "TTMD_DEPOSIT_HISTORY" in query_upper and "WHERE" not in query_upper:
+            logger.warning("TTMD_Deposit_History query missing WHERE clause - adding date filter for performance")
+            
+            # Find the right place to insert WHERE clause
+            if "GROUP BY" in query_upper:
+                # Insert WHERE before GROUP BY
+                group_pos = query.upper().find("GROUP BY")
+                query = (query[:group_pos] + 
+                        "\nWHERE [As Of Date] >= DATEADD(month, -3, GETDATE()) -- Auto-added for performance\n" +
+                        query[group_pos:])
+            elif "ORDER BY" in query_upper:
+                # Insert WHERE before ORDER BY
+                order_pos = query.upper().find("ORDER BY")
+                query = (query[:order_pos] + 
+                        "\nWHERE [As Of Date] >= DATEADD(month, -3, GETDATE()) -- Auto-added for performance\n" +
+                        query[order_pos:])
+            else:
+                # Add at the end before any OPTION clause
+                if "OPTION" in query_upper:
+                    option_pos = query.upper().find("OPTION")
+                    query = (query[:option_pos] + 
+                            "\nWHERE [As Of Date] >= DATEADD(month, -3, GETDATE()) -- Auto-added for performance\n" +
+                            query[option_pos:])
+                else:
+                    query += "\nWHERE [As Of Date] >= DATEADD(month, -3, GETDATE()) -- Auto-added for performance"
+
         # Apply transparent SQL Server optimizations
         optimized_query = self._add_transparent_query_hints(query)
 
