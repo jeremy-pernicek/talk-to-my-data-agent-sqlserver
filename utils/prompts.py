@@ -588,6 +588,8 @@ def create_charts(df):
 - Function MUST return a plotly figure object (not None, not show())
 - Do NOT call fig.show() - just return the figure
 - Import all required libraries inside the function
+- ENSURE all Python syntax is valid (check quotes, parentheses, commas)
+- Test your code mentally before returning it - does it have valid Python syntax?
 
 **EXAMPLE TEMPLATE:**
 ```python
@@ -599,15 +601,23 @@ def create_charts(df):
     fig = px.line(df, x='date_column', y='value_column', 
                   title='Your Chart Title')
     
-    # Customize as needed
+    # Customize as needed - ENSURE all quotes and commas are correct
     fig.update_layout(
         title_x=0.5,
-        template='plotly_white'
+        template='plotly_white',
+        xaxis_title='Date',
+        yaxis_title='Value'
     )
     
     # RETURN the figure (do not call show())
     return fig
 ```
+
+**COMMON SYNTAX ERRORS TO AVOID:**
+- Missing quotes: `tickprefix=',` should be `tickprefix=','`
+- Unclosed parentheses: `dict(title='test', value=` should be `dict(title='test', value='test')`
+- Missing commas in function calls or dictionaries
+- Mixing single and double quotes incorrectly
 
 **Important Notes:**
 - Focus on clarity and business insight over visual complexity
