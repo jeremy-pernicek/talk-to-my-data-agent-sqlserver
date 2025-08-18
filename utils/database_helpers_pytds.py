@@ -25,8 +25,15 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generator
 
-import polars as pl
-import pytds
+try:
+    import polars as pl
+except ImportError:
+    pl = None  # type: ignore
+
+try:
+    import pytds
+except ImportError:
+    pytds = None  # type: ignore
 
 from .code_execution import InvalidGeneratedCode
 from .database_helpers import DatabaseOperator, retry_on_transient_error
@@ -89,6 +96,11 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
             default_timeout: Default query timeout in seconds
             pushdown_config: Configuration for pushdown optimization
         """
+        if pytds is None:
+            raise ImportError("pytds is required for SQL Server operations but is not installed")
+        if pl is None:
+            raise ImportError("polars is required for SQL Server operations but is not installed")
+        
         self._credentials = credentials
         self.default_timeout = default_timeout
         self.pushdown_config = pushdown_config or PushdownConfig()
@@ -97,7 +109,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         )
 
     @contextmanager
-    def create_connection(self) -> Generator[pytds.Connection, None, None]:
+    def create_connection(self) -> Generator[Any, None, None]:
         """Create a connection to SQL Server using pytds"""
         if not self._credentials.is_configured():
             raise ValueError("SQL Server credentials not properly configured")
@@ -436,7 +448,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
 
     def get_table_as_dataframe(
         self, query: str, timeout: int | None = None
-    ) -> pl.DataFrame | str:
+    ) -> Any:
         """Execute query and return results as Polars DataFrame
 
         Args:
