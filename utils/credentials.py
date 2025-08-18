@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from pydantic import AliasChoices, AliasPath, Field, field_validator
 from pydantic_settings import BaseSettings
@@ -40,14 +40,14 @@ class AzureOpenAICredentials(DRCredentials):
             AliasPath("MLOPS_RUNTIME_PARAM_OPENAI_API_BASE", "payload"),
         )
     )
-    api_version: str | None = Field(
+    api_version: Union[str, None] = Field(
         default=None,
         validation_alias=AliasChoices(
             "OPENAI_API_VERSION",
             AliasPath("MLOPS_RUNTIME_PARAM_OPENAI_API_VERSION", "payload"),
         ),
     )
-    azure_deployment: str | None = Field(
+    azure_deployment: Union[str, None] = Field(
         default=None,
         validation_alias=AliasChoices(
             "OPENAI_API_DEPLOYMENT_ID",
@@ -80,7 +80,7 @@ class GoogleCredentialsBQ(DRCredentials):
     region: Optional[str] = Field(
         default="us-west1", validation_alias="GOOGLE_REGION_BQ"
     )
-    db_schema: str | None = Field(
+    db_schema: Union[str, None] = Field(
         default=None,
         validation_alias=AliasChoices(
             "GOOGLE_DB_SCHEMA_BQ", AliasPath("MLOPS_RUNTIME_PARAM_GOOGLE_DB_SCHEMA_BQ")
@@ -116,7 +116,7 @@ class AWSBedrockCredentials(DRCredentials):
 class SnowflakeCredentials(DRCredentials):
     """Snowflake Connection credentials auto-constructed using environment variables."""
 
-    user: str | None = Field(
+    user: Union[str, None] = Field(
         default=None,
         validation_alias=AliasChoices(
             AliasPath("MLOPS_RUNTIME_PARAM_db_credential", "payload", "username"),
@@ -124,7 +124,7 @@ class SnowflakeCredentials(DRCredentials):
             "SNOWFLAKE_USER",
         ),
     )
-    password: str | None = Field(
+    password: Union[str, None] = Field(
         default=None,
         validation_alias=AliasChoices(
             AliasPath("MLOPS_RUNTIME_PARAM_db_credential", "payload", "password"),
@@ -161,7 +161,7 @@ class SnowflakeCredentials(DRCredentials):
             "SNOWFLAKE_ROLE",
         ),
     )
-    snowflake_key_path: str | None = Field(
+    snowflake_key_path: Union[str, None] = Field(
         default=None,
         validation_alias=AliasChoices(
             AliasPath("MLOPS_RUNTIME_PARAM_SNOWFLAKE_KEY_PATH"), "SNOWFLAKE_KEY_PATH"
