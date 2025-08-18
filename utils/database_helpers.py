@@ -79,27 +79,27 @@ except ImportError:
     _import_logger.warning("pyodbc not available")
     pyodbc = None  # type: ignore
 
-from openai.types.chat.chat_completion_system_message_param import (
+from openai.types.chat.chat_completion_system_message_param import (  # noqa: E402
     ChatCompletionSystemMessageParam,
 )
-from pydantic import ValidationError
+from pydantic import ValidationError  # noqa: E402
 
-from utils.analyst_db import AnalystDB, DataSourceType
-from utils.code_execution import InvalidGeneratedCode
-from utils.credentials import (
+from utils.analyst_db import AnalystDB, DataSourceType  # noqa: E402
+from utils.code_execution import InvalidGeneratedCode  # noqa: E402
+from utils.credentials import (  # noqa: E402
     GoogleCredentialsBQ,
     NoDatabaseCredentials,
     SAPDatasphereCredentials,
     SnowflakeCredentials,
     SQLServerCredentials,
 )
-from utils.logging_helper import get_logger
-from utils.prompts import (
+from utils.logging_helper import get_logger  # noqa: E402
+from utils.prompts import (  # noqa: E402
     SYSTEM_PROMPT_BIGQUERY,
     SYSTEM_PROMPT_SAP_DATASPHERE,
     SYSTEM_PROMPT_SNOWFLAKE,
 )
-from utils.schema import (
+from utils.schema import (  # noqa: E402
     AnalystDataset,
     AppInfra,
 )
