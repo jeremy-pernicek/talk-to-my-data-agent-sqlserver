@@ -53,7 +53,7 @@ def test_polars_fix():
 
     # Test direct Polars creation (this might fail)
     try:
-        df_direct = pl.DataFrame(problematic_data)
+        pl.DataFrame(problematic_data)
         print("✓ Direct Polars creation succeeded (data types were consistent)")
     except Exception as e:
         print(f"✗ Direct Polars creation failed: {str(e)}")
@@ -97,7 +97,7 @@ def test_polars_fix():
 
     try:
         # Try with extended inference first
-        df_large = pl.DataFrame(large_data, infer_schema_length=10000)
+        pl.DataFrame(large_data, infer_schema_length=10000)
         print("✓ Large dataset with extended inference succeeded")
     except Exception as e:
         print(f"○ Large dataset direct creation failed: {str(e)}")
@@ -199,7 +199,7 @@ def simulate_sql_server_query_result():
 
         # Method 1: Direct Polars with extended inference
         try:
-            df1 = pl.DataFrame(simulated_sql_result, infer_schema_length=10000)
+            pl.DataFrame(simulated_sql_result, infer_schema_length=10000)
             print("✓ Method 1 (extended inference) succeeded")
         except Exception as e:
             print(f"○ Method 1 failed: {str(e)}")

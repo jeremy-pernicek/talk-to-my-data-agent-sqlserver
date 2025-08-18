@@ -192,7 +192,7 @@ def main():
         return
 
     # Test 5: External Database
-    ext_tables = test_external_database()
+    test_external_database()
 
     print("\n" + "=" * 50)
     if tables and len(tables) > 0:

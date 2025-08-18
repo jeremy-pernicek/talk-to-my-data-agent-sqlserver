@@ -36,7 +36,7 @@ def test_view_support():
 
     # Test credential creation (this will fail without real credentials, but we can test the class)
     try:
-        credentials = SQLServerCredentials()
+        SQLServerCredentials()
         print("✓ SQLServerCredentials class instantiated")
     except Exception as e:
         print(f"○ SQLServerCredentials failed (expected without env vars): {e}")

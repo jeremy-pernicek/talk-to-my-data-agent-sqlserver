@@ -79,7 +79,7 @@ def test_query_optimization():
 
         # This will fail connection, but we can test the methods
         try:
-            operator = SQLServerOperatorPytds(mock_creds, pushdown_config=config)
+            SQLServerOperatorPytds(mock_creds, pushdown_config=config)
         except:
             print("○ Connection failed as expected with mock credentials")
 
@@ -229,7 +229,7 @@ def test_integration_compatibility():
         from schema import AppInfra
 
         try:
-            app_infra = AppInfra(llm="azure_openai", database="sqlserver")
+            AppInfra(llm="azure_openai", database="sqlserver")
             print("✓ SQL Server database type is recognized")
         except Exception as e:
             print(f"○ AppInfra test: {e}")

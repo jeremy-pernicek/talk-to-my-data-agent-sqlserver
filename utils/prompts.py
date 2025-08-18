@@ -388,4 +388,3 @@ Your response shall be formatted as JSON with the following fields:
 1) code: T-SQL code that will execute and return the data
 2) description: A brief description of how the code works, and how the results can be interpreted to answer the question.
 """
-
