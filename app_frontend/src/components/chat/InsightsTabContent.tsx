@@ -18,7 +18,7 @@ export const InsightsTabContent: React.FC<InsightsTabContentProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div>
+    <>
       {/* <InfoText>
         DataRobot generates additional content based on your original question.
       </InfoText> */}
@@ -28,6 +28,6 @@ export const InsightsTabContent: React.FC<InsightsTabContentProps> = ({
         </HeaderSection>
       )}
       <SuggestedQuestionsSection questions={followUpQuestions} chatId={chatId} />
-    </div>
+    </>
   );
 };

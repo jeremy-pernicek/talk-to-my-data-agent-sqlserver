@@ -43,27 +43,25 @@ SQL_DRIVER_ERROR = None
 
 try:
     import pytds
-
     HAS_PYTDS = True
     _import_logger.info("pytds driver is available")
 except ImportError as e:
     SQL_DRIVER_ERROR = f"pytds not available: {str(e)}"
     _import_logger.warning(SQL_DRIVER_ERROR)
-
+    
     # Log diagnostic information
     import os
     import sys
-
+    
     _import_logger.warning(f"Python path: {sys.path}")
     _import_logger.warning(f"Current working directory: {os.getcwd()}")
     _import_logger.warning(f"Script location: {__file__}")
     _import_logger.warning(f"PYTHONPATH env: {os.environ.get('PYTHONPATH', 'Not set')}")
-
+    
     pytds = None  # type: ignore
 
 try:
     import pymssql
-
     HAS_PYMSSQL = True
     _import_logger.info("pymssql driver is available")
 except ImportError:
@@ -72,34 +70,33 @@ except ImportError:
 
 try:
     import pyodbc
-
     HAS_PYODBC = True
     _import_logger.info("pyodbc driver is available")
 except ImportError:
     _import_logger.warning("pyodbc not available")
     pyodbc = None  # type: ignore
-from openai.types.chat.chat_completion_system_message_param import (  # noqa: E402
+from openai.types.chat.chat_completion_system_message_param import (
     ChatCompletionSystemMessageParam,
 )
-from pydantic import ValidationError  # noqa: E402
+from pydantic import ValidationError
 
-from utils.analyst_db import AnalystDB, DataSourceType  # noqa: E402
-from utils.code_execution import InvalidGeneratedCode  # noqa: E402
-from utils.credentials import (  # noqa: E402
+from utils.analyst_db import AnalystDB, DataSourceType
+from utils.code_execution import InvalidGeneratedCode
+from utils.credentials import (
     GoogleCredentialsBQ,
     NoDatabaseCredentials,
     SAPDatasphereCredentials,
     SnowflakeCredentials,
     SQLServerCredentials,
 )
-from utils.logging_helper import get_logger  # noqa: E402
-from utils.prompts import (  # noqa: E402
+from utils.logging_helper import get_logger
+from utils.prompts import (
     SYSTEM_PROMPT_BIGQUERY,
     SYSTEM_PROMPT_SAP_DATASPHERE,
     SYSTEM_PROMPT_SNOWFLAKE,
     SYSTEM_PROMPT_SQLSERVER,
 )
-from utils.schema import (  # noqa: E402
+from utils.schema import (
     AnalystDataset,
     AppInfra,
 )
@@ -111,56 +108,58 @@ _DEFAULT_DB_QUERY_TIMEOUT = 300
 
 
 def retry_on_transient_error(
-    max_attempts: int = 3,
-    initial_delay: float = 1.0,
-    backoff_factor: float = 2.0,
-    transient_errors: tuple[type[Exception], ...] = (),
-) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    """Decorator to retry operations on transient database errors.
-
+    max_attempts: int = 3, initial_delay: float = 1.0
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Decorator to retry operations on transient errors
+    
     Args:
         max_attempts: Maximum number of retry attempts
         initial_delay: Initial delay between retries in seconds
-        backoff_factor: Factor to multiply delay by after each retry
-        transient_errors: Tuple of exception types to consider transient
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> T:
-            delay = initial_delay
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             last_exception = None
-
+            delay = initial_delay
+            
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
-                except transient_errors as e:
+                except Exception as e:
                     last_exception = e
-                    if attempt < max_attempts - 1:
-                        logger.warning(
-                            f"Transient error in {func.__name__} (attempt {attempt + 1}/{max_attempts}): {str(e)}. "
-                            f"Retrying in {delay} seconds..."
-                        )
-                        time.sleep(delay)
-                        delay *= backoff_factor
-                    else:
-                        logger.error(
-                            f"Max retry attempts reached for {func.__name__}. Last error: {str(e)}"
-                        )
-                except Exception:
-                    # Non-transient errors should not be retried
+                    error_msg = str(e).lower()
+                    
+                    # Check if it's a transient error
+                    transient_keywords = [
+                        "timeout",
+                        "connection",
+                        "network",
+                        "temporarily",
+                        "deadlock",
+                        "busy",
+                    ]
+                    
+                    if any(keyword in error_msg for keyword in transient_keywords):
+                        if attempt < max_attempts - 1:
+                            logger.warning(
+                                f"Transient error on attempt {attempt + 1}/{max_attempts}: {e}. "
+                                f"Retrying in {delay} seconds..."
+                            )
+                            time.sleep(delay)
+                            delay *= 2  # Exponential backoff
+                            continue
+                    
+                    # Not a transient error or last attempt
                     raise
-
-            # If we get here, we've exhausted all retries
+            
+            # This should never be reached, but just in case
             if last_exception:
                 raise last_exception
-            else:
-                raise RuntimeError(
-                    f"Unexpected error in retry logic for {func.__name__}"
-                )
-
+            raise RuntimeError("Unexpected retry loop exit")
+        
         return wrapper
-
+    
     return decorator
 
 
@@ -177,11 +176,6 @@ class BigQueryCredentialArgs:
 @dataclass
 class SAPDatasphereCredentialArgs:
     credentials: SAPDatasphereCredentials
-
-
-@dataclass
-class SQLServerCredentialArgs:
-    credentials: SQLServerCredentials
 
 
 @dataclass
@@ -865,309 +859,12 @@ class SAPDatasphereOperator(DatabaseOperator[SAPDatasphereCredentialArgs]):
         )
 
 
-class SQLServerOperator(DatabaseOperator[SQLServerCredentialArgs]):
-    def __init__(
-        self,
-        credentials: SQLServerCredentials,
-        default_timeout: int = _DEFAULT_DB_QUERY_TIMEOUT,
-    ):
-        if not HAS_PYTDS:
-            raise ImportError(
-                "SQL Server support requires python-tds package. "
-                "Install with: pip install python-tds"
-            )
-        if not credentials.is_configured():
-            raise ValueError("SQL Server credentials not properly configured")
-        self._credentials = credentials
-        self.default_timeout = default_timeout
-        self._connection_pool: list[pytds.Connection] = []  # type: ignore
-        self._max_pool_size = 5
-        logger.info("Using pytds driver for SQL Server connection")
-
-    def _get_connection_from_pool(self) -> pytds.Connection | None:
-        """Get a connection from the pool if available."""
-        while self._connection_pool:
-            conn = self._connection_pool.pop()
-            try:
-                # Test if connection is still alive
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT 1")
-                return conn
-            except Exception:
-                # Connection is dead, try next one
-                continue
-        return None
-
-    def _return_connection_to_pool(self, conn: pytds.Connection) -> None:
-        """Return a connection to the pool if there's space."""
-        if len(self._connection_pool) < self._max_pool_size:
-            try:
-                # Test if connection is still good before returning to pool
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT 1")
-                self._connection_pool.append(conn)
-            except Exception:
-                # Connection is bad, don't return to pool
-                pass
-
-    @retry_on_transient_error(max_attempts=3, initial_delay=1.0)
-    def _create_new_connection(self) -> pytds.Connection:
-        """Create a new pytds connection with retry logic for transient failures."""
-        return pytds.connect(
-            server=self._credentials.host,
-            port=self._credentials.port,
-            user=self._credentials.user,
-            password=self._credentials.password,
-            database=self._credentials.database,
-            tds_version=0x74000004,  # TDS 7.4 for SQL Server 2012+
-            login_timeout=10,
-            use_mars=False,
-            autocommit=True,
-        )
-
-    @contextmanager
-    def create_connection(self) -> Generator[pytds.Connection, None, None]:
-        """Get a connection from the pool or create a new one."""
-        if not self._credentials.is_configured():
-            raise ValueError("SQL Server credentials not properly configured")
-
-        # Try to get connection from pool first
-        connection = self._get_connection_from_pool()
-
-        # If no connection available in pool, create new one
-        if connection is None:
-            connection = self._create_new_connection()
-            logger.debug("Created new SQL Server connection")
-        else:
-            logger.debug("Reused connection from pool")
-
-        try:
-            yield connection
-        finally:
-            # Return connection to pool instead of closing
-            self._return_connection_to_pool(connection)
-
-    @retry_on_transient_error(max_attempts=2, initial_delay=0.5)
-    def _execute_query_with_retry(
-        self, cursor: pytds.Cursor, query: str
-    ) -> tuple[list[str], list[Any]]:
-        """Execute query with retry logic"""
-        cursor.execute(query)
-        columns = (
-            [column[0] for column in cursor.description] if cursor.description else []
-        )
-        rows = cursor.fetchall()
-        return columns, rows
-
-    def execute_query(
-        self, query: str, timeout: int | None = None
-    ) -> list[tuple[Any, ...]] | list[dict[str, Any]]:
-        """Execute a SQL Server query with timeout
-
-        Args:
-            query: SQL query to execute
-            timeout: Query timeout in seconds
-
-        Returns:
-            List of dictionaries containing query results
-
-        Raises:
-            InvalidGeneratedCode: If query execution fails
-        """
-        timeout = timeout if timeout is not None else self.default_timeout
-        cursor = None
-
-        try:
-            with self.create_connection() as conn:
-                cursor = conn.cursor()
-
-                try:
-                    columns, rows = self._execute_query_with_retry(cursor, query)
-
-                    # Convert to list of dictionaries
-                    results = []
-                    for row in rows:
-                        results.append(dict(zip(columns, row)))
-
-                    return cast(list[dict[str, Any]], results)
-
-                except (pytds.Error, pytds.OperationalError, pytds.InterfaceError) as e:
-                    # Handle SQL Server specific errors
-                    raise InvalidGeneratedCode(
-                        f"SQL Server error: {str(e)}",
-                        code=query,
-                        exception=e,
-                        traceback_str=traceback.format_exc(),
-                    )
-                finally:
-                    if cursor:
-                        cursor.close()
-
-        except InvalidGeneratedCode:
-            raise  # Re-raise InvalidGeneratedCode as-is
-        except Exception as e:
-            raise InvalidGeneratedCode(
-                f"Query execution failed: {str(e)}",
-                code=query,
-                exception=e,
-                traceback_str=traceback.format_exc(),
-            )
-
-    def get_tables(self, timeout: int | None = None) -> list[str]:
-        """Fetch list of tables from SQL Server schema"""
-        timeout = timeout if timeout is not None else self.default_timeout
-
-        try:
-            with self.create_connection() as conn:
-                cursor = conn.cursor()
-
-                try:
-                    # Query to get all tables and views in the specified schema
-                    query = f"""
-                        SELECT TABLE_NAME 
-                        FROM INFORMATION_SCHEMA.TABLES 
-                        WHERE TABLE_SCHEMA = '{self._credentials.db_schema}'
-                        AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')
-                        ORDER BY TABLE_NAME
-                    """
-
-                    cursor.execute(query)
-                    results = cursor.fetchall()
-
-                    tables = [row[0] for row in results]
-
-                    logger.info(
-                        f"Found {len(tables)} tables/views in schema {self._credentials.db_schema}"
-                    )
-                    for table in tables:
-                        logger.info(f"Found table: {table}")
-
-                    return tables
-                finally:
-                    cursor.close()
-
-        except Exception as e:
-            logger.error(f"Failed to fetch tables: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            return []
-
-    @functools.lru_cache(maxsize=8)
-    async def get_data(
-        self,
-        *table_names: str,
-        analyst_db: AnalystDB,
-        sample_size: int = 5000,
-        timeout: int | None = None,
-    ) -> list[str]:
-        """Load selected tables from SQL Server as pandas DataFrames
-
-        Args:
-            table_names: List of table names to fetch
-            analyst_db: AnalystDB instance to register datasets
-            sample_size: Number of rows to sample from each table
-            timeout: Query timeout in seconds
-
-        Returns:
-            List of successfully loaded table names
-        """
-        timeout = timeout if timeout is not None else self.default_timeout
-
-        dataframes = []
-        try:
-            with self.create_connection() as conn:
-                for table in table_names:
-                    cursor = None
-                    try:
-                        cursor = conn.cursor()
-                        # Properly quote table name
-                        qualified_table = f"[{self._credentials.database}].[{self._credentials.db_schema}].[{table}]"
-                        logger.info(f"Fetching data from table: {qualified_table}")
-
-                        # Execute query to get data with TOP (SQL Server equivalent of LIMIT)
-                        query = f"""
-                            SELECT TOP {sample_size} * 
-                            FROM {qualified_table}
-                        """
-                        cursor.execute(query)
-
-                        # Get column names
-                        if not cursor.description:
-                            logger.warning(f"No columns found for table {table}")
-                            continue
-
-                        columns = [column[0] for column in cursor.description]
-
-                        # Fetch all data at once (pytds handles this efficiently)
-                        rows = cursor.fetchall()
-                        # Limit to sample_size if needed
-                        if len(rows) > sample_size:
-                            rows = rows[:sample_size]
-
-                        # Convert directly to Polars DataFrame with string schema
-                        # This avoids the pandas intermediate step
-                        if rows:
-                            # Convert all values to strings during construction
-                            str_rows = [
-                                [str(val) if val is not None else None for val in row]
-                                for row in rows
-                            ]
-                            df = pl.DataFrame(
-                                data=str_rows,
-                                schema={col: pl.String for col in columns},
-                                orient="row",
-                            )
-                        else:
-                            # Create empty DataFrame with proper schema
-                            df = pl.DataFrame(
-                                schema={col: pl.String for col in columns}
-                            )
-
-                        logger.info(
-                            f"Successfully loaded table {table}: {len(df)} rows, {len(df.columns)} columns"
-                        )
-                        dataframes.append(AnalystDataset(name=table, data=df))
-
-                    except Exception as e:
-                        logger.error(
-                            f"Error loading table {table}: {str(e)}", exc_info=True
-                        )
-                        continue
-                    finally:
-                        if cursor:
-                            cursor.close()
-
-                # Register datasets
-                names = []
-                for dataframe in dataframes:
-                    await analyst_db.register_dataset(
-                        dataframe, DataSourceType.DATABASE
-                    )
-                    names.append(dataframe.name)
-                return names
-
-        except Exception as e:
-            logger.error(f"Error fetching SQL Server data: {str(e)}")
-            logger.error(f"Error type: {type(e)}")
-            logger.error(f"Error details: {str(e)}")
-            return []
-
-    def get_system_prompt(self) -> ChatCompletionSystemMessageParam:
-        return ChatCompletionSystemMessageParam(
-            role="system",
-            content=SYSTEM_PROMPT_SQLSERVER.format(
-                database=self._credentials.database,
-                schema=self._credentials.db_schema,
-            ),
-        )
-
-
 def get_database_operator(app_infra: AppInfra) -> DatabaseOperator[Any]:
     if app_infra.database == "bigquery":
         credentials: (
             GoogleCredentialsBQ
             | SnowflakeCredentials
             | SAPDatasphereCredentials
-            | SQLServerCredentials
             | NoDatabaseCredentials
         )
         try:
@@ -1207,55 +904,51 @@ def get_database_operator(app_infra: AppInfra) -> DatabaseOperator[Any]:
                 logger.info(
                     f"SQL Server drivers available - pytds: {HAS_PYTDS}, pymssql: {HAS_PYMSSQL}, pyodbc: {HAS_PYODBC}"
                 )
-
+                
                 # Try to import the pytds implementation
                 try:
                     from .database_helpers_pytds import SQLServerOperatorPytds
-
+                    
                     logger.info(
                         "Using pytds driver for SQL Server connection from database_helpers_pytds module"
                     )
                     return SQLServerOperatorPytds(credentials)
                 except ImportError as e:
                     logger.warning(f"Could not import database_helpers_pytds: {e}")
-
-                    # Check which SQL Server driver is available
+                    
+                    # Fallback: Check which SQL Server driver is available
                     if HAS_PYTDS:
-                        logger.info("Using inline pytds implementation")
-                        return SQLServerOperator(credentials)
-                    elif HAS_PYODBC:
-                        logger.warning(
-                            "pytds not available, but pyodbc is available - SQL Server support not implemented for pyodbc"
-                        )
+                        logger.error("pytds is available but database_helpers_pytds module not found")
                         raise ImportError(
-                            "SQL Server support requires python-tds package. "
-                            "pyodbc is available but not currently supported. "
-                            f"Import error: {SQL_DRIVER_ERROR}"
+                            "SQL Server support files missing. Please ensure database_helpers_pytds.py is present."
                         )
                     elif HAS_PYMSSQL:
-                        logger.warning(
-                            "pytds not available, but pymssql is available - SQL Server support not implemented for pymssql"
+                        raise NotImplementedError(
+                            "pymssql driver detected but not yet implemented. Please use pytds."
                         )
-                        raise ImportError(
-                            "SQL Server support requires python-tds package. "
-                            "pymssql is available but not currently supported. "
-                            f"Import error: {SQL_DRIVER_ERROR}"
+                    elif HAS_PYODBC:
+                        raise NotImplementedError(
+                            "pyodbc driver detected but not yet implemented. Please use pytds."
                         )
                     else:
-                        logger.error(
-                            "No SQL Server drivers available in runtime environment"
-                        )
-                        raise ImportError(
-                            "No SQL Server drivers available. "
-                            "DataRobot runtime environment does not include pytds, pymssql, or pyodbc. "
-                            f"Import error: {SQL_DRIVER_ERROR}"
-                        )
-        except (ValidationError, ValueError):
+                        if SQL_DRIVER_ERROR:
+                            raise ImportError(
+                                f"No SQL Server driver available. {SQL_DRIVER_ERROR}"
+                            )
+                        else:
+                            raise ImportError(
+                                "No SQL Server driver available. Please install pytds: pip install python-tds"
+                            )
+            else:
+                logger.warning(
+                    "SQL Server credentials not properly configured, falling back to no database"
+                )
+        except (ValidationError, ValueError) as e:
             logger.warning(
-                "SQL Server credentials not properly configured, falling back to no database"
+                f"SQL Server configuration error: {e}, falling back to no database"
             )
         except ImportError as e:
-            logger.error(f"Failed to initialize SQL Server support: {e}")
+            logger.error(f"SQL Server import error: {e}, falling back to no database")
         return NoDatabaseOperator(NoDatabaseCredentials())
     else:
         return NoDatabaseOperator(NoDatabaseCredentials())

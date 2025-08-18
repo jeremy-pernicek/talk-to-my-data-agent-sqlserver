@@ -328,7 +328,6 @@ class SQLServerCredentials(DRCredentials):
             AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_DRIVER"),
             "AZURE_SQL_DRIVER",
         ),
-        description="ODBC driver name (e.g., 'ODBC Driver 18 for SQL Server', 'ODBC Driver 17 for SQL Server')",
     )
     trust_server_certificate: bool = Field(
         default=False,
@@ -336,7 +335,7 @@ class SQLServerCredentials(DRCredentials):
             AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_TRUST_CERT"),
             "AZURE_SQL_TRUST_CERT",
         ),
-        description="Whether to trust the server certificate without validation (False is recommended for production)",
+        description="Whether to trust the server certificate",
     )
     encrypt: bool = Field(
         default=True,
@@ -371,18 +370,14 @@ class SQLServerCredentials(DRCredentials):
         return v
 
     def is_configured(self) -> bool:
-        """
-        Check if SQL Server credentials are properly configured.
-        """
-        return all(
-            [
-                self.host,
-                self.port,
-                self.user,
-                self.password,
-                self.database,
-                self.db_schema,
-            ]
+        """Check if SQL Server credentials are properly configured."""
+        return bool(
+            self.host
+            and self.port
+            and self.user
+            and self.password
+            and self.database
+            and self.db_schema
         )
 
 

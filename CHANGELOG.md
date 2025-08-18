@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] - 2025-08-12
+
+### Features
+
+- Allow adding BOM when exporting and fix dictionary exports containing Japanese characters in name.
+- Performance improvements: Cache DataRobot client and Deployment ID.
+
+### Bug Fixes
+
+- Message deletion fixes.
+
+### Improvements
+
+- Hide welcome modal on close click.
+- Updated README with local React development instructions.
+
+## [0.3.5] - 2025-08-07
+
+### Added
+
+- Export individual chat message (question-answer) functionality. That includes underlying data, charts, summary and insights.
+- Integration of LLM Gateway with Model Deployments
+
+### Changed
+
+- Updated welcome modal
+- Disabled clicking follow-up suggestions while answering is in progress; replaced icon with button
+
+### Fixed
+
+- Improved overall exporting experience
+- Better visual feedback when something fails
+- UX improvements for chat messages: removed excessive auto-scrolling and enhanced the Send button
+
+## [0.3.4] - 2025-08-01
+
+### Added
+
+- Allow use of DataRobot LLM Gateway instead of DataRobot-hosted pre-built LLM (https://docs.datarobot.com/en/docs/gen-ai/genai-code/dr-llm-gateway.html)
+
+## [0.3.3] - 2025-07-29
+
+### Changed
+
+- Fix Snowflake connector issue by upgrading pulumi-datarobot to 0.10.13
+
+## [0.3.2] - 2025-07-24
+
+### Added
+
+- Implemented search control for each dataset dictionary
+
+### Fixed
+
+- Updates translation files after fixing automation
+
 ## [0.3.1] - 2025-07-11
 
 ### Changed
@@ -28,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Set LLM Gateway Inference runtime parameter to False always for user-provided credentials 
+- Set LLM Gateway Inference runtime parameter to False always for user-provided credentials
 
 ## [0.2.00] - 2025-06-16
 

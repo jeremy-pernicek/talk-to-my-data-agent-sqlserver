@@ -1,20 +1,21 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 
-interface MessageContainerProps {
+interface MessageContainerProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
+  testId?: string;
 }
 
-export const MessageContainer: React.FC<MessageContainerProps> = React.memo(({ children }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    ref.current?.scrollIntoView(false);
-  });
-  return (
-    <div
-      className="p-3 bg-card rounded flex-col justify-start items-start gap-3 flex mb-2.5 mr-2"
-      ref={ref}
-    >
-      {children}
-    </div>
-  );
-});
+export const MessageContainer = React.memo(
+  React.forwardRef<HTMLDivElement, MessageContainerProps>(({ children, testId, ...props }, ref) => {
+    return (
+      <div
+        className="p-3 bg-card rounded flex-col justify-start items-start gap-3 flex mb-8 mr-2"
+        data-testid={testId}
+        ref={ref}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  })
+);

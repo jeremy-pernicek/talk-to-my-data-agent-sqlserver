@@ -179,6 +179,88 @@ def _execute_query_with_retry(self, cursor, query):
     # Execution logic
 ```
 
+## Database Object Support
+
+### Tables and Views Support
+
+The SQL Server integration provides comprehensive support for both database tables and views, maintaining consistency with other database operators (Snowflake, BigQuery, SAP Datasphere).
+
+#### Core Functionality
+
+**Unified Listing**: The main `get_tables()` method returns both tables and views, allowing users to work with any database object seamlessly.
+
+```python
+# Returns both tables and views
+tables_and_views = operator.get_tables()
+```
+
+**Object Type Detection**: The integration can distinguish between tables and views:
+
+```python
+# Get specific object types
+tables_only = operator.list_tables_only()
+views_only = operator.list_views_only()
+
+# Get objects with type information
+objects_with_types = operator.list_tables_with_types()
+# Returns: [{"name": "CustomerTable", "type": "table"}, {"name": "SalesView", "type": "view"}]
+
+# Check specific object type
+object_type = operator.get_object_type("CustomerView")  # Returns "VIEW"
+```
+
+**Schema Information**: Both tables and views support the same schema inspection:
+
+```python
+# Works for both tables and views
+schema_info = operator.get_table_schema("CustomerView")
+```
+
+#### SQL Query Support
+
+The integration uses `INFORMATION_SCHEMA.TABLES` to discover both tables and views:
+
+```sql
+SELECT TABLE_NAME, TABLE_TYPE
+FROM INFORMATION_SCHEMA.TABLES 
+WHERE TABLE_TYPE IN ('BASE TABLE', 'VIEW') 
+AND TABLE_SCHEMA = 'dbo'
+ORDER BY TABLE_TYPE, TABLE_NAME
+```
+
+**Benefits for Users:**
+- **Unified Interface**: No need to distinguish between tables and views when querying
+- **Complete Discovery**: All queryable objects are available in the interface
+- **Consistent Experience**: Same functionality works across all supported databases
+- **Performance Insights**: Separate logging for tables vs views for troubleshooting
+
+#### View-Specific Considerations
+
+**T-SQL Compatibility**: Views work seamlessly with the T-SQL prompt system, including:
+- GROUP BY validation (views follow same rules as tables)
+- TOP clauses for limiting results
+- Schema-qualified naming (`[schema].[view_name]`)
+
+**Query Performance**: Views are treated identically to tables for:
+- Sample data retrieval
+- Schema inspection
+- Query execution and timing
+
+**Example Usage**:
+```python
+# List all objects (tables + views)
+all_objects = operator.get_tables()
+# Example output: ['Customers', 'Orders', 'ProductCatalogView', 'SalesAnalyticsView']
+
+# Get view-specific information
+sales_view_schema = operator.get_table_schema('SalesAnalyticsView')
+sales_view_type = operator.get_object_type('SalesAnalyticsView')  # Returns 'VIEW'
+
+# Query a view (same as querying a table)
+query = "SELECT TOP 10 * FROM [dbo].[SalesAnalyticsView] WHERE Region = 'US'"
+results = operator.execute_query(query)
+```
+
 ## Configuration
 
 ### Environment Variables

@@ -60,6 +60,7 @@ Codespace users can **skip steps 1 and 2**. For local development, follow all of
    OPENAI_API_DEPLOYMENT_ID=...  # e.g. gpt-4o
    PULUMI_CONFIG_PASSPHRASE=...  # Required. Choose your own alphanumeric passphrase to be used for encrypting pulumi config
    FRONTEND_TYPE=...  # Optional. Default is "react", set to "streamlit" to use Streamlit frontend
+   USE_DATAROBOT_LLM_GATEWAY=...  # Optional. Set to "true" to use DataRobot LLM Gateway with consumption based pricing instead of using your own LLM credentials
    ```
    Use the following resources to locate the required credentials:
    - **DataRobot API Token**: Refer to the *Create a DataRobot API Key* section of the [DataRobot API Quickstart docs](https://docs.datarobot.com/en/docs/api/api-quickstart/index.html#create-a-datarobot-api-key).
@@ -75,6 +76,21 @@ Codespace users can **skip steps 1 and 2**. For local development, follow all of
 
 Advanced users desiring control over virtual environment creation, dependency installation, environment variable setup
 and `pulumi` invocation see [here](#setup-for-advanced-users).
+
+
+## Template development
+
+The Talk to My Data agent supports two frontend options:
+- **React** (default): a modern JavaScript-based frontend with enhanced UI features which uses FastAPI Backend. See the [React Frontend Development Guide](app_frontend/README.md)
+- **Streamlit:** A Python-based frontend with a simple interface. See the [Streamlit Frontend Development Guide](frontend/README.md)
+
+To change the frontend:
+1. In `.env`: Set `FRONTEND_TYPE="streamlit"` to use the Streamlit frontend instead of the default React.
+2. Run the following to update your stack (Or rerun your quickstart.py)
+   ```bash
+   source set_env.sh  # On windows use `set_env.bat`
+   pulumi up
+   ```
 
 ## Architecture overview
 
@@ -114,31 +130,6 @@ Your data privacy is important to us. Data handling is governed by the DataRobot
 
 ## Make changes
 
-### Change the frontend
-
-The Talk to My Data agent supports two frontend options:
-
-1. Streamlit frontend (default): A Python-based frontend with a simple interface
-2. React frontend: A modern JavaScript-based frontend with enhanced UI features
-
-To change the frontend:
-
-1. In `.env`: Set `FRONTEND_TYPE="react"` to use the React frontend instead of the default Streamlit frontend
-2. Run `pulumi up` to update your stack (Or rerun your quickstart)
-   ```bash
-   source set_env.sh  # On windows use `set_env.bat`
-   pulumi up
-   ```
-
-> **⚠️ Important note:**  
-> If you make changes to the React frontend code, you need to rebuild it before deploying:
-> ```bash
-> cd app_frontend
-> npm install
-> npm run build
-> ```
-> The built files will be placed in `app_frontend/static/` which will be used by the deployment. See `app_frontend/README.md` for more details on developing and building the React frontend.
-
 ### Change the LLM
 
 1. Modify the `LLM` setting in `infra/settings_generative.py` by changing `LLM=LLMs.AZURE_OPENAI_GPT_4_O` to any other LLM from the `LLMs` object. 
@@ -148,6 +139,36 @@ To change the frontend:
       - In `.env`: Set either the `TEXTGEN_REGISTERED_MODEL_ID` or the `TEXTGEN_DEPLOYMENT_ID`
       - In `.env`: Set `CHAT_MODEL_NAME` to the model name expected by the deployment (e.g. "claude-3-7-sonnet-20250219" for an anthropic deployment, "datarobot-deployed-llm" for NIM models ) 
       - (Optional) In `utils/api.py`: `ALTERNATIVE_LLM_BIG` and `ALTERNATIVE_LLM_SMALL` can be used for fine-grained control over which LLM is used for different tasks.
+
+### Use DataRobot LLM Gateway
+
+The application supports using the DataRobot LLM Gateway instead of bringing your own LLM credentials.
+
+#### **Credential Priority**
+
+The application follows this priority order for LLM selection:
+
+1. **OpenAI Credentials** (Highest Priority) - If `OPENAI_API_KEY`, `OPENAI_API_BASE`, etc. are provided in `.env`, they will always be used regardless of the `USE_DATAROBOT_LLM_GATEWAY` setting
+2. **LLM Gateway** - If `USE_DATAROBOT_LLM_GATEWAY=true` and no OpenAI credentials are provided
+
+#### **Setup**
+
+1. In `.env`: Set `USE_DATAROBOT_LLM_GATEWAY=true`
+3. **Important**: Remove or comment out `OPENAI_*` environment variables to use LLM Gateway
+4. Run `pulumi up` to update your stack
+   ```bash
+   source set_env.sh  # On windows use `set_env.bat`
+   pulumi up
+   ```
+
+#### **When LLM Gateway is enabled:**
+- No hardcoded LLM credentials (OpenAI keys) are required in your `.env` file
+- The LLM Gateway provides a unified interface to multiple LLM providers through DataRobot in production
+- You can pick from the catalog and change the model `LLM` in `infra/settings_generative.py`
+- It will use a DataRobot Guarded RAG Deployment and LLM Blueprint for that selected model
+
+**Note**: LLM Gateway mode requires consumption based pricing is enabled for your DataRobot account as is evidenced by the `ENABLE_LLM_GATEWAY` feature flag. Contact your administrator if this feature is not available.
+
 3. In `.env`: If not using an existing TextGen model or deployment, provide the required credentials dependent on your choice.
 4. Run `pulumi up` to update your stack (Or rerun your quickstart).
       ```bash
@@ -183,6 +204,7 @@ The Talk to my Data Agent supports connecting to BigQuery.
       source set_env.sh  # On windows use `set_env.bat`
       pulumi up
       ```
+
 #### SAP Datasphere
 
 The Talk to my Data Agent supports connecting to SAP Datasphere.
