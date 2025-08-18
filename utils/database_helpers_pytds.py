@@ -239,11 +239,18 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         # Add OPTION clauses for performance
         hints = []
         
+        # Detect if FORMAT() is being used for date operations (slow!)
+        if "FORMAT(" in query_upper:
+            logger.warning("Query uses FORMAT() function which is slow on large datasets. Consider using CONVERT() instead.")
+        
         # For queries without TOP, add FAST hint to get first results quickly
         if "TOP" not in query_upper and "OPTION" not in query_upper:
             # Check if it's an aggregation query or detailed query
             if any(agg in query_upper for agg in ["GROUP BY", "COUNT(", "SUM(", "AVG("]):
-                hints.append("FAST 100")  # Get first 100 aggregated results quickly
+                # For aggregation queries, don't use FAST hint as it can make them slower
+                # Instead use HASH GROUP for better aggregation performance
+                hints.append("HASH GROUP")
+                hints.append("MAXDOP 4")  # Use parallel processing for aggregations
             else:
                 hints.append("FAST 1000")  # Get first 1000 detail results quickly
         
@@ -251,6 +258,15 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         if "FROM" in query_upper and "WHERE" not in query_upper:
             # Full table scan detected - add memory optimization
             hints.append("HASH GROUP")  # Use hash aggregation for large scans
+            hints.append("MAXDOP 4")  # Enable parallel processing
+            logger.warning("Query performs full table scan without WHERE clause - performance may be slow")
+        
+        # For date-based aggregations, ensure proper hints
+        if "GROUP BY" in query_upper and any(date_func in query_upper for date_func in ["YEAR(", "MONTH(", "CONVERT(", "FORMAT("]):
+            if "HASH GROUP" not in hints:
+                hints.append("HASH GROUP")
+            if "MAXDOP" not in " ".join(hints):
+                hints.append("MAXDOP 4")
         
         # Apply hints if any were identified
         if hints and not query_upper.endswith(";"):

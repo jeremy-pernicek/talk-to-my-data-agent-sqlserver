@@ -422,16 +422,32 @@ CRITICAL EFFICIENCY RULES FOR LLM-GENERATED QUERIES:
 - For summary statistics: Group by time periods (month/quarter) rather than individual dates
 - When joining tables: Always include WHERE conditions to limit the cartesian product
 - For performance metrics: Calculate totals AND percentages to provide context
-- Example optimized time-series query:
+
+PERFORMANCE OPTIMIZATION FOR DATE AGGREGATIONS:
+- AVOID FORMAT() function for date grouping as it's extremely slow on large datasets
+- Instead of: FORMAT([As Of Date], 'yyyy-MM') 
+- Use: CONVERT(VARCHAR(7), [As Of Date], 120) -- Returns 'YYYY-MM' format, 10x faster
+- Or use: YEAR([As Of Date]) as Year, MONTH([As Of Date]) as Month -- Even faster for separate columns
+
+Example optimized time-series query:
   SELECT 
-    YEAR([Date Column]) as Year,
-    MONTH([Date Column]) as Month,
+    -- Fast date grouping methods:
+    CONVERT(VARCHAR(7), [Date Column], 120) as YearMonth,  -- Fastest for 'YYYY-MM'
+    -- OR use separate columns:
+    -- YEAR([Date Column]) as Year,
+    -- MONTH([Date Column]) as Month,
     SUM([Amount]) as Total,
     COUNT(*) as TransactionCount
   FROM [Database].[Schema].[Table]
-  WHERE [Date Column] >= DATEADD(month, -12, GETDATE())
-  GROUP BY YEAR([Date Column]), MONTH([Date Column])
-  ORDER BY Year DESC, Month DESC
+  WHERE [Date Column] >= DATEADD(month, -12, GETDATE())  -- Always filter first
+  GROUP BY CONVERT(VARCHAR(7), [Date Column], 120)
+  ORDER BY YearMonth DESC
+
+CRITICAL: For aggregations on large tables with date columns:
+1. ALWAYS add a WHERE clause to limit date range BEFORE aggregation
+2. Use CONVERT(VARCHAR(7), date, 120) instead of FORMAT() for month grouping
+3. Consider using indexed computed columns for frequently grouped date parts
+4. For deposits/transactions, default to last 6 months unless specified otherwise
 
 - Example incorrect syntax that will fail:
   SELECT Region, Product, Customer, AVG(Sales) as AvgSales  -- ERROR: Customer not in GROUP BY!
