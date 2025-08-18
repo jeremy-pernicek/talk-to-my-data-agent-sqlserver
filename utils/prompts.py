@@ -568,7 +568,46 @@ Provide executable Python code that:
 2. Includes proper titles, labels, and formatting
 3. Uses appropriate chart types for the data and message
 4. Adds interactive features where beneficial
-5. Returns or displays the chart
+5. Returns the chart using the REQUIRED function signature below
+
+**REQUIRED FUNCTION SIGNATURE:**
+Your code MUST define a function with this exact signature:
+```python
+def create_charts(df):
+    # Your visualization code here
+    # df is a pandas DataFrame containing the data
+    
+    # Create your chart(s)
+    # Return a single chart figure
+    return fig
+```
+
+**CRITICAL REQUIREMENTS:**
+- Function MUST be named `create_charts`
+- Function MUST accept exactly one parameter: `df` (pandas DataFrame)
+- Function MUST return a plotly figure object (not None, not show())
+- Do NOT call fig.show() - just return the figure
+- Import all required libraries inside the function
+
+**EXAMPLE TEMPLATE:**
+```python
+def create_charts(df):
+    import plotly.express as px
+    import pandas as pd
+    
+    # Create your visualization
+    fig = px.line(df, x='date_column', y='value_column', 
+                  title='Your Chart Title')
+    
+    # Customize as needed
+    fig.update_layout(
+        title_x=0.5,
+        template='plotly_white'
+    )
+    
+    # RETURN the figure (do not call show())
+    return fig
+```
 
 **Important Notes:**
 - Focus on clarity and business insight over visual complexity
