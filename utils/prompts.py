@@ -413,12 +413,26 @@ PERFORMANCE OPTIMIZATION FOR LARGE DATASETS:
 - For time-based analysis, filter dates first: WHERE DateColumn >= DATEADD(day, -30, GETDATE())
 - Use TABLESAMPLE for statistical sampling: SELECT * FROM large_table TABLESAMPLE (1000 ROWS)
 - Consider using ROW_NUMBER() OVER() for pagination of large results
-- Example correct syntax:
-  SELECT Region, Product, AVG(Sales) as AvgSales, COUNT(*) as RecordCount
-  FROM SalesTable
-  WHERE DateColumn >= DATEADD(month, -3, GETDATE())
-  GROUP BY Region, Product
-  ORDER BY AvgSales DESC
+
+CRITICAL EFFICIENCY RULES FOR LLM-GENERATED QUERIES:
+- For trend analysis over time: Default to last 12 months unless user specifies otherwise
+- For comparing categories: Use TOP 10 or TOP 20 to limit results to most significant items
+- For exploration queries: Always include reasonable date filters on time-based columns
+- When user asks "What are the..." default to TOP 10 unless they specify a number
+- For summary statistics: Group by time periods (month/quarter) rather than individual dates
+- When joining tables: Always include WHERE conditions to limit the cartesian product
+- For performance metrics: Calculate totals AND percentages to provide context
+- Example optimized time-series query:
+  SELECT 
+    YEAR([Date Column]) as Year,
+    MONTH([Date Column]) as Month,
+    SUM([Amount]) as Total,
+    COUNT(*) as TransactionCount
+  FROM [Database].[Schema].[Table]
+  WHERE [Date Column] >= DATEADD(month, -12, GETDATE())
+  GROUP BY YEAR([Date Column]), MONTH([Date Column])
+  ORDER BY Year DESC, Month DESC
+
 - Example incorrect syntax that will fail:
   SELECT Region, Product, Customer, AVG(Sales) as AvgSales  -- ERROR: Customer not in GROUP BY!
   FROM SalesTable

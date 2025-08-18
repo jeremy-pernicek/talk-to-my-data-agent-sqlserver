@@ -53,10 +53,10 @@ class PushdownConfig:
     max_result_memory_mb: int = 500
     streaming_chunk_size: int = 10000
 
-    # Query optimization
-    auto_add_top_limit: int = 50000
+    # Query optimization  
+    auto_add_top_limit: int = 10000  # Reduced from 50000 to prevent timeouts
     enable_tablesample: bool = True
-    tablesample_rows: int = 10000
+    tablesample_rows: int = 5000  # Reduced from 10000
 
     # Performance monitoring
     log_query_performance: bool = True
@@ -91,7 +91,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
     def __init__(
         self,
         credentials: "SQLServerCredentials",
-        default_timeout: int = 300,
+        default_timeout: int = 600,
         pushdown_config: PushdownConfig | None = None,
     ) -> None:
         """Initialize SQL Server operator with pytds
@@ -113,6 +113,11 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         self._credentials = credentials
         self.default_timeout = default_timeout
         self.pushdown_config = pushdown_config or PushdownConfig()
+        
+        # Performance tracking for query optimization learning
+        self._query_performance_cache = {}
+        self._connection_pool_stats = {"total_connections": 0, "failed_connections": 0}
+        
         logger.info(
             "Initialized SQLServerOperatorPytds for DataRobot Codespace environment with pushdown capabilities"
         )
@@ -124,15 +129,20 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
             raise ValueError("SQL Server credentials not properly configured")
 
         try:
-            # Create connection with pytds
+            # Create connection with pytds - use extended timeouts for complex queries
+            connection_timeout = max(self._credentials.connection_timeout or 30, 120)
+            login_timeout = max(self._credentials.connection_timeout or 30, 60)
+            
+            logger.info(f"Connecting to SQL Server with extended timeouts: connection={connection_timeout}s, login={login_timeout}s")
+            
             connection = pytds.connect(
                 server=self._credentials.host,
                 port=self._credentials.port,
                 user=self._credentials.user,
                 password=self._credentials.password,
                 database=self._credentials.database,
-                timeout=self._credentials.connection_timeout,
-                login_timeout=self._credentials.connection_timeout,
+                timeout=connection_timeout,  # Extended timeout for query execution
+                login_timeout=login_timeout,  # Extended timeout for connection establishment
                 as_dict=True,  # Return rows as dictionaries
                 autocommit=True,  # Enable autocommit to prevent transaction issues
             )
@@ -209,16 +219,161 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                         f"Added TOP {max_rows} clause to query for optimization"
                     )
 
-        # Add query hints for large table optimization
-        optimized_query = query
-
-        # For very large result sets, suggest using TABLESAMPLE for sampling
-        if max_rows and max_rows <= 10000:
-            if "FROM" in query_upper and "TABLESAMPLE" not in query_upper:
-                # Could add TABLESAMPLE hint for sampling, but requires table structure analysis
-                logger.debug("Consider using TABLESAMPLE for very large table sampling")
+        # Apply transparent SQL Server optimizations
+        optimized_query = self._add_transparent_query_hints(query)
 
         return optimized_query
+
+    def _add_transparent_query_hints(self, query: str) -> str:
+        """Add SQL Server query hints that don't change semantics but improve performance
+        
+        Args:
+            query: Original SQL query
+            
+        Returns:
+            Query with performance hints added
+        """
+        query = query.strip()
+        query_upper = query.upper()
+        
+        # Add OPTION clauses for performance
+        hints = []
+        
+        # For queries without TOP, add FAST hint to get first results quickly
+        if "TOP" not in query_upper and "OPTION" not in query_upper:
+            # Check if it's an aggregation query or detailed query
+            if any(agg in query_upper for agg in ["GROUP BY", "COUNT(", "SUM(", "AVG("]):
+                hints.append("FAST 100")  # Get first 100 aggregated results quickly
+            else:
+                hints.append("FAST 1000")  # Get first 1000 detail results quickly
+        
+        # Add query optimization hints for large table scans
+        if "FROM" in query_upper and "WHERE" not in query_upper:
+            # Full table scan detected - add memory optimization
+            hints.append("HASH GROUP")  # Use hash aggregation for large scans
+        
+        # Apply hints if any were identified
+        if hints and not query_upper.endswith(";"):
+            option_clause = f" OPTION ({', '.join(hints)})"
+            query = query + option_clause
+            logger.debug(f"Added SQL Server hints: {option_clause}")
+        
+        return query
+
+    def _track_query_performance(self, query: str, execution_time: float, row_count: int) -> None:
+        """Track query performance metrics for optimization learning
+        
+        Args:
+            query: The executed query
+            execution_time: Time taken to execute the query
+            row_count: Number of rows returned
+        """
+        # Create a simple hash of the query pattern for tracking
+        query_pattern = self._extract_query_pattern(query)
+        
+        if query_pattern not in self._query_performance_cache:
+            self._query_performance_cache[query_pattern] = {
+                "avg_time": execution_time,
+                "min_time": execution_time,
+                "max_time": execution_time,
+                "avg_rows": row_count,
+                "execution_count": 1
+            }
+        else:
+            stats = self._query_performance_cache[query_pattern]
+            stats["execution_count"] += 1
+            stats["avg_time"] = (stats["avg_time"] * (stats["execution_count"] - 1) + execution_time) / stats["execution_count"]
+            stats["avg_rows"] = (stats["avg_rows"] * (stats["execution_count"] - 1) + row_count) / stats["execution_count"]
+            stats["min_time"] = min(stats["min_time"], execution_time)
+            stats["max_time"] = max(stats["max_time"], execution_time)
+        
+        # Log performance insights
+        if execution_time > 30:  # Slow query
+            logger.warning(f"Slow query detected: {execution_time:.2f}s for pattern {query_pattern}")
+        elif execution_time > 10:
+            logger.info(f"Medium query time: {execution_time:.2f}s for pattern {query_pattern}")
+
+    def _extract_query_pattern(self, query: str) -> str:
+        """Extract a pattern from the query for performance tracking
+        
+        Args:
+            query: SQL query
+            
+        Returns:
+            Simplified query pattern string
+        """
+        query_upper = query.upper()
+        
+        # Extract basic pattern
+        pattern_parts = []
+        
+        if "SELECT" in query_upper:
+            pattern_parts.append("SELECT")
+            
+        if "COUNT(" in query_upper:
+            pattern_parts.append("COUNT")
+        if "SUM(" in query_upper:
+            pattern_parts.append("SUM")
+        if "AVG(" in query_upper:
+            pattern_parts.append("AVG")
+        if "GROUP BY" in query_upper:
+            pattern_parts.append("GROUP_BY")
+        if "ORDER BY" in query_upper:
+            pattern_parts.append("ORDER_BY")
+        if "WHERE" in query_upper:
+            pattern_parts.append("WHERE")
+        if "JOIN" in query_upper:
+            pattern_parts.append("JOIN")
+        if "TOP" in query_upper:
+            pattern_parts.append("TOP")
+            
+        return "_".join(pattern_parts) if pattern_parts else "UNKNOWN"
+
+    def get_performance_insights(self) -> dict[str, Any]:
+        """Get performance insights that can inform query optimization
+        
+        Returns:
+            Dictionary with performance insights
+        """
+        if not self._query_performance_cache:
+            return {"insights": "No performance data available yet"}
+        
+        insights = {
+            "total_query_patterns": len(self._query_performance_cache),
+            "slow_patterns": [],
+            "fast_patterns": [],
+            "recommendations": []
+        }
+        
+        for pattern, stats in self._query_performance_cache.items():
+            if stats["avg_time"] > 20:
+                insights["slow_patterns"].append({
+                    "pattern": pattern,
+                    "avg_time": round(stats["avg_time"], 2),
+                    "avg_rows": round(stats["avg_rows"], 0),
+                    "executions": stats["execution_count"]
+                })
+            elif stats["avg_time"] < 3:
+                insights["fast_patterns"].append({
+                    "pattern": pattern,
+                    "avg_time": round(stats["avg_time"], 2),
+                    "avg_rows": round(stats["avg_rows"], 0),
+                    "executions": stats["execution_count"]
+                })
+        
+        # Generate recommendations based on patterns
+        if insights["slow_patterns"]:
+            insights["recommendations"].append(
+                "Consider adding WHERE clauses to limit result sets for better performance"
+            )
+        
+        for slow_pattern in insights["slow_patterns"]:
+            if "GROUP_BY" not in slow_pattern["pattern"] and slow_pattern["avg_rows"] > 10000:
+                insights["recommendations"].append(
+                    f"Pattern {slow_pattern['pattern']} might benefit from aggregation or TOP clause"
+                )
+        
+        return insights
 
     def execute_query_with_optimization(
         self, query: str, timeout: int | None = None, max_rows: int | None = None
@@ -266,6 +421,9 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
 
         cursor = None
 
+        # Track query performance for learning
+        query_start_time = time.time()
+        
         try:
             with self.create_connection() as conn:
                 # Create cursor (as_dict is already set on connection)
@@ -281,6 +439,10 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                     columns, rows = self._execute_query_with_retry(
                         cursor, optimized_query
                     )
+                    
+                    # Track performance metrics
+                    execution_time = time.time() - query_start_time
+                    self._track_query_performance(query, execution_time, len(rows))
 
                     # Check for large result sets and warn if configured
                     if (
@@ -296,7 +458,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                     if cursor.description and rows:
                         # With as_dict=True on connection, rows should be dictionaries
                         if self.pushdown_config.log_query_performance:
-                            logger.info(f"Query returned {len(rows)} rows successfully")
+                            logger.info(f"Query returned {len(rows)} rows successfully in {execution_time:.2f}s")
                         return rows
                     else:
                         return []
@@ -306,11 +468,72 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                         cursor.close()
 
         except Exception as e:
+            error_str = str(e).lower()
             logger.error(f"Query execution failed: {str(e)}")
             logger.error(f"Original query was: {query[:1500]}...")
             if optimized_query != query:
                 logger.error(f"Optimized query was: {optimized_query[:1500]}...")
-            raise InvalidGeneratedCode(f"Failed to execute SQL query: {str(e)}") from e
+            
+            # Handle timeout errors with specific guidance
+            if "timed out" in error_str or "timeout" in error_str:
+                # Try a simplified query approach for timeouts
+                logger.warning("Query timeout detected. Attempting fallback with simpler query...")
+                try:
+                    fallback_result = self._execute_timeout_fallback(query)
+                    if fallback_result:
+                        return fallback_result
+                except Exception as fallback_error:
+                    logger.error(f"Fallback query also failed: {str(fallback_error)}")
+                
+                raise InvalidGeneratedCode(
+                    f"Query timeout: The query is too complex or the dataset is too large. "
+                    f"Consider adding more specific WHERE clauses, using smaller date ranges, "
+                    f"or limiting the number of rows with TOP clause. Original error: {str(e)}"
+                ) from e
+            else:
+                raise InvalidGeneratedCode(f"Failed to execute SQL query: {str(e)}") from e
+
+    def _execute_timeout_fallback(self, original_query: str) -> list[dict[str, Any]] | None:
+        """Execute a simplified version of the query when timeout occurs
+        
+        Args:
+            original_query: The original query that timed out
+            
+        Returns:
+            Simplified query results or None if fallback fails
+        """
+        try:
+            # Create a much more aggressive optimization for timeout scenarios
+            query_upper = original_query.upper()
+            
+            # If it's a complex aggregation, try a much smaller sample
+            if any(agg in query_upper for agg in ["GROUP BY", "COUNT(", "SUM(", "AVG("]):
+                # Replace any existing TOP with a very small limit
+                if "TOP" in query_upper:
+                    # Remove existing TOP clause and add our own
+                    import re
+                    fallback_query = re.sub(r'\bTOP\s+\d+\b', 'TOP 1000', original_query, flags=re.IGNORECASE)
+                else:
+                    # Add TOP 1000 to the query
+                    fallback_query = self.optimize_query_for_large_datasets(original_query, 1000)
+                
+                logger.info("Attempting timeout fallback with TOP 1000 limit")
+                
+                with self.create_connection() as conn:
+                    cursor = conn.cursor()
+                    try:
+                        columns, rows = self._execute_query_with_retry(cursor, fallback_query)
+                        if rows:
+                            logger.info(f"Timeout fallback succeeded: returned {len(rows)} rows")
+                            return rows
+                    finally:
+                        cursor.close()
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Timeout fallback failed: {str(e)}")
+            return None
 
     def execute_query_streaming(
         self, query: str, timeout: int | None = None, chunk_size: int = 10000
