@@ -150,56 +150,93 @@ export const ResponseMessage: React.FC<ResponseMessageProps> = ({ message, chatI
     <MessageContainer testId={testId} ref={ref}>
       <MessageHeader messageId={message.id} chatId={chatId} />
 
-      {isLoading ? (
-        <Loading />
-      ) : (
-        <div className="self-stretch text-sm font-normal leading-tight">
-          {enhancedUserMessage && <div className="mb-3">{enhancedUserMessage}</div>}
+      <div className="self-stretch text-sm font-normal leading-tight">
+        {/* Show enhanced user message immediately when available, even while loading */}
+        {enhancedUserMessage && (
+          <div className="mb-3 animate-fadeIn">
+            <div className="text-muted-foreground text-xs mb-1">Analyzing your question...</div>
+            <div className="font-medium">{enhancedUserMessage}</div>
+          </div>
+        )}
 
-          {message?.error && (
-            <div className="max-h-[300px] overflow-x-auto overflow-y-auto max-w-full">
-              <span className="text-destructive text-sm">{message?.error}</span>
-            </div>
-          )}
+        {/* Show error if present */}
+        {message?.error && (
+          <div className="max-h-[300px] overflow-x-auto overflow-y-auto max-w-full animate-fadeIn">
+            <span className="text-destructive text-sm">{message?.error}</span>
+          </div>
+        )}
 
-          <ResponseTabs value={activeTab} onValueChange={setActiveTab} tabStates={tabStates} />
+        {/* Show tabs immediately, even while some content is loading */}
+        {(isLoading || bottomLine || additionalInsights || code || dataset) && (
+          <>
+            <ResponseTabs value={activeTab} onValueChange={setActiveTab} tabStates={tabStates} />
 
-          {activeTab === RESPONSE_TABS.SUMMARY && (
-            <>
-              {chartsErrors && !analysisErrors && (
-                <ErrorPanel errors={chartsErrors} componentType="Charts" />
-              )}
-              <SummaryTabContent bottomLine={bottomLine} fig1={fig1_json} fig2={fig2_json} />
-            </>
-          )}
+            {activeTab === RESPONSE_TABS.SUMMARY && (
+              <>
+                {chartsErrors && !analysisErrors && (
+                  <ErrorPanel errors={chartsErrors} componentType="Charts" />
+                )}
+                {isLoading && !bottomLine && !fig1_json && !fig2_json ? (
+                  <div className="p-4">
+                    <Loading />
+                  </div>
+                ) : (
+                  <div className="animate-fadeIn">
+                    <SummaryTabContent bottomLine={bottomLine} fig1={fig1_json} fig2={fig2_json} />
+                  </div>
+                )}
+              </>
+            )}
 
-          {activeTab === RESPONSE_TABS.INSIGHTS && (
-            <>
-              {businessErrors && (
-                <ErrorPanel errors={businessErrors} componentType="Business Insights" />
-              )}
-              <InsightsTabContent
-                additionalInsights={additionalInsights}
-                followUpQuestions={followUpQuestions}
-                chatId={chatId}
-              />
-            </>
-          )}
+            {activeTab === RESPONSE_TABS.INSIGHTS && (
+              <>
+                {businessErrors && (
+                  <ErrorPanel errors={businessErrors} componentType="Business Insights" />
+                )}
+                {isLoading && !additionalInsights && !followUpQuestions ? (
+                  <div className="p-4">
+                    <Loading />
+                  </div>
+                ) : (
+                  <div className="animate-fadeIn">
+                    <InsightsTabContent
+                      additionalInsights={additionalInsights}
+                      followUpQuestions={followUpQuestions}
+                      chatId={chatId}
+                    />
+                  </div>
+                )}
+              </>
+            )}
 
-          {activeTab === RESPONSE_TABS.CODE && (
-            <>
-              {analysisErrors && (
-                <ErrorPanel
-                  attempts={analysisAttempts}
-                  errors={analysisErrors}
-                  componentType="Analysis"
-                />
-              )}
-              <CodeTabContent dataset={dataset} code={code} />
-            </>
-          )}
-        </div>
-      )}
+            {activeTab === RESPONSE_TABS.CODE && (
+              <>
+                {analysisErrors && (
+                  <ErrorPanel
+                    attempts={analysisAttempts}
+                    errors={analysisErrors}
+                    componentType="Analysis"
+                  />
+                )}
+                {isLoading && !dataset && !code ? (
+                  <div className="p-4">
+                    <Loading />
+                  </div>
+                ) : (
+                  <div className="animate-fadeIn">
+                    <CodeTabContent dataset={dataset} code={code} />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* Show initial loading state only if we have no content at all */}
+        {isLoading && !enhancedUserMessage && !bottomLine && !additionalInsights && !code && !dataset && (
+          <Loading />
+        )}
+      </div>
     </MessageContainer>
   );
 };

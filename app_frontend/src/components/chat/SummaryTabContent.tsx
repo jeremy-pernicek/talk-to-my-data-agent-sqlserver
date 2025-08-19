@@ -15,16 +15,32 @@ export const SummaryTabContent: React.FC<SummaryTabContentProps> = ({ bottomLine
   const plot1 = parsePlotData(fig1);
   const plot2 = parsePlotData(fig2);
 
+  // Show skeleton loaders when content is expected but not yet available
+  const isLoadingBottomLine = !bottomLine && !fig1 && !fig2;
+  const isLoadingCharts = bottomLine && !fig1 && !fig2;
+
   return (
     <div>
-      {/* <InfoText>
-        DataRobot writes as short an answer to your question as possible,
-        illustrated with supporting charts.
-      </InfoText> */}
-      {bottomLine && <HeaderSection title={t('Bottom line')}>{bottomLine}</HeaderSection>}
+      {/* Show bottom line or skeleton */}
+      {bottomLine ? (
+        <HeaderSection title={t('Bottom line')}>{bottomLine}</HeaderSection>
+      ) : isLoadingBottomLine ? (
+        <div className="mb-4">
+          <div className="h-4 bg-muted rounded w-24 mb-2 animate-pulse"></div>
+          <div className="h-20 bg-muted rounded animate-pulse"></div>
+        </div>
+      ) : null}
+      
+      {/* Show charts or skeleton */}
       <div className="flex flex-col gap-2.5">
         {plot1 && <PlotPanel plotData={plot1} />}
         {plot2 && <PlotPanel plotData={plot2} />}
+        {isLoadingCharts && (
+          <>
+            <div className="h-64 bg-muted rounded animate-pulse"></div>
+            <div className="h-64 bg-muted rounded animate-pulse"></div>
+          </>
+        )}
       </div>
     </div>
   );
