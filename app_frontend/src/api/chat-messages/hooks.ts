@@ -33,7 +33,7 @@ export const useFetchAllMessages = ({ chatId, limit = 100 }: IFetchMessagesParam
       !query ||
       // query.state?.data?.length === 0 ||
       query.state?.data?.some(d => d.in_progress)
-        ? 5000
+        ? 2000
         : false,
   });
 
@@ -68,24 +68,8 @@ export const usePostMessage = () => {
         ? queryClient.getQueryData<IChat[]>(messageKeys.chats) || []
         : undefined;
 
-      const newUserMessage: IChatMessage = {
-        role: 'user',
-        content: message,
-        components: [],
-        in_progress: false,  // User message is not in progress
-        created_at: new Date().toISOString(),
-      };
-
-      // Add placeholder for assistant response that's in progress
-      const placeholderAssistantMessage: IChatMessage = {
-        role: 'assistant',
-        content: '',
-        components: [],
-        in_progress: true,
-        created_at: new Date().toISOString(),
-      };
-
-      queryClient.setQueryData(messagesKey, [...previousMessages, newUserMessage, placeholderAssistantMessage]);
+      // Don't add optimistic updates - let the API response handle the message creation
+      // This prevents jitter and conflicts with progressive loading
 
       return { previousMessages, messagesKey, previousChats };
     },
@@ -104,29 +88,8 @@ export const usePostMessage = () => {
       // When redirecting from InitialPrompt (no chatId), don't invalidate queries
       // as we'll navigate to the new chat which will fetch the messages
       if (!variables.chatId) {
-        // Set the chat messages data directly in the cache to avoid loading state
-        queryClient.setQueryData<IChatMessage[]>(messageKeys.messages(data.id), (oldData = []) => {
-          // Filter out any existing messages for this chat (shouldn't be any for new chat)
-          const existingMessages = oldData.filter(msg => msg.content !== variables.message);
-          
-          return [
-            ...existingMessages,
-            {
-              role: 'user',
-              content: variables.message,
-              components: [],
-              in_progress: false,  // User message is complete
-              created_at: new Date().toISOString(),
-            },
-            {
-              role: 'assistant',
-              content: '',
-              components: [],
-              in_progress: true,  // Assistant is processing
-              created_at: new Date().toISOString(),
-            },
-          ];
-        });
+        // Let the polling mechanism handle message loading for progressive updates
+        // This prevents conflicts with the real API data
 
         queryClient.setQueryData<IChat[]>(messageKeys.chats, (oldData = []) => {
           const chatExists = oldData.some(chat => chat.id === data.id);
@@ -147,7 +110,7 @@ export const usePostMessage = () => {
         // Navigate to the new chat
         navigate(generateChatRoute(data.id));
       } else {
-        // For existing chats, invalidate as usual
+        // For existing chats, invalidate immediately to trigger fresh data fetch
         queryClient.invalidateQueries({
           queryKey: messageKeys.messages(variables.chatId),
         });
