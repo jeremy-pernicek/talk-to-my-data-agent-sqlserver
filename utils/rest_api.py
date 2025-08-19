@@ -1278,11 +1278,18 @@ async def run_complete_analysis_task(
         enable_business_insights=enable_business_insights,
     )
 
-    async for message in run_analysis_iterator:
-        if isinstance(message, AnalysisGenerationError):
+    # Process all components from the analysis pipeline
+    # The run_complete_analysis function handles saving components to the database internally
+    # We just need to consume all yielded items to let the process complete
+    async for component in run_analysis_iterator:
+        if isinstance(component, AnalysisGenerationError):
+            logger.error(f"Analysis error: {component}")
             break
         else:
-            pass
+            # Component has been processed and saved by run_complete_analysis
+            # Log progress for debugging
+            component_type = type(component).__name__
+            logger.info(f"Analysis component completed: {component_type}")
 
 
 @router.get("/user/datarobot-account")
