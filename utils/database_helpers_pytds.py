@@ -135,6 +135,8 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
             
             logger.info(f"Connecting to SQL Server with extended timeouts: connection={connection_timeout}s, login={login_timeout}s")
             
+            # Note: pytds handles encryption automatically for SQL Server 2017+
+            # The JDBC encrypt=true;trustServerCertificate=true is handled internally
             connection = pytds.connect(
                 server=self._credentials.host,
                 port=self._credentials.port,

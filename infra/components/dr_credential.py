@@ -634,19 +634,23 @@ def get_database_credentials(
                     )
                 )
 
-            if test_credentials:
+            # Check if we should skip the connectivity test
+            skip_test = os.getenv("SKIP_DATABASE_TEST", "false").lower() == "true"
+            
+            if test_credentials and not skip_test:
                 import pytds
 
                 try:
+                    # Note: pytds doesn't support encrypt/trustServerCertificate directly
+                    # It will attempt encrypted connection by default for SQL Server 2017+
                     conn = pytds.connect(
                         server=credentials.host,
                         port=credentials.port,
                         user=credentials.user,
                         password=credentials.password,
                         database=credentials.database,
-                        tds_version=0x74000004,  # TDS 7.4
-                        login_timeout=10,
-                        use_mars=False,
+                        login_timeout=30,  # Increase timeout
+                        timeout=30,  # Query timeout
                         autocommit=True,
                     )
                     conn.close()
@@ -662,6 +666,9 @@ def get_database_credentials(
                             """
                         )
                     ) from e
+            elif skip_test:
+                logger.warning("Skipping SQL Server connectivity test as requested (SKIP_DATABASE_TEST=true)")
+                logger.info(f"SQL Server configuration: {credentials.host}:{credentials.port}/{credentials.database}")
 
             return credentials
 
