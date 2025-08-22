@@ -814,8 +814,9 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                 row["TABLE_NAME"] for row in results if row["TABLE_TYPE"] == "VIEW"
             ]
 
+            schemas_str = "', '".join(schemas)
             logger.info(
-                f"Found {len(tables)} tables and {len(views)} views in schema '{schema}'"
+                f"Found {len(tables)} tables and {len(views)} views in schema(s) '{schemas_str}'"
             )
             if tables:
                 logger.debug(f"Tables: {', '.join(tables)}")

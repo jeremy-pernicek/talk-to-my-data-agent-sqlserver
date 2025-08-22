@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AliasChoices, AliasPath, Field, field_validator
 from pydantic_settings import BaseSettings
@@ -317,10 +317,19 @@ class SQLServerCredentials(DRCredentials):
         ),
     )
     db_schema: str = Field(
+        default="dbo",
         validation_alias=AliasChoices(
             AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_SCHEMA"),
             "AZURE_SQL_SCHEMA",
         ),
+    )
+    db_schemas: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            AliasPath("MLOPS_RUNTIME_PARAM_AZURE_SQL_SCHEMAS"),
+            "AZURE_SQL_SCHEMAS",
+        ),
+        description="Comma-separated list of schemas to access (e.g., 'dbo,hr,finance')",
     )
     driver: str = Field(
         default="ODBC Driver 18 for SQL Server",
@@ -360,14 +369,38 @@ class SQLServerCredentials(DRCredentials):
     @classmethod
     def validate_schema_name(cls, v: str) -> str:
         """Validate that schema name contains only safe characters"""
-        if not v:
-            raise ValueError("Schema name cannot be empty")
-        # Allow only alphanumeric, underscore, and dot for schema names
-        if not all(c.isalnum() or c in ("_", ".") for c in v):
+        if v and not all(c.isalnum() or c in ("_", ".") for c in v):
             raise ValueError(
                 "Schema name can only contain alphanumeric characters, underscores, and dots"
             )
-        return v
+        return v or "dbo"  # Default to dbo if empty
+    
+    @field_validator("db_schemas", mode="before")
+    @classmethod
+    def parse_schemas_list(cls, v: Any) -> Optional[List[str]]:
+        """Parse comma-separated schemas string into list"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            # Split by comma and strip whitespace
+            schemas = [s.strip() for s in v.split(",") if s.strip()]
+            # Validate each schema name
+            for schema in schemas:
+                if not all(c.isalnum() or c in ("_", ".") for c in schema):
+                    raise ValueError(
+                        f"Schema '{schema}' contains invalid characters. "
+                        "Only alphanumeric, underscore, and dot are allowed."
+                    )
+            return schemas if schemas else None
+        elif isinstance(v, list):
+            return v
+        return None
+    
+    def get_schemas_list(self) -> List[str]:
+        """Get list of schemas to use (from db_schemas or fallback to db_schema)"""
+        if self.db_schemas:
+            return self.db_schemas
+        return [self.db_schema] if self.db_schema else ["dbo"]
 
     def is_configured(self) -> bool:
         """Check if SQL Server credentials are properly configured."""
@@ -377,7 +410,7 @@ class SQLServerCredentials(DRCredentials):
             and self.user
             and self.password
             and self.database
-            and self.db_schema
+            and (self.db_schema or self.db_schemas)
         )
 
 

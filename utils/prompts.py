@@ -397,6 +397,8 @@ Your query will be executed from Python using the pytds Python Connector.
 SQL SERVER SPECIFIC CONSIDERATIONS:
 - Use TOP instead of LIMIT for limiting results (e.g., SELECT TOP 10 * FROM table)
 - Use square brackets [] for identifiers with spaces or reserved words
+- For schema-qualified tables, use format [schema].[table] (e.g., [hr].[employees], [finance].[transactions])
+- When table names are provided with schema prefix (e.g., 'hr.employees'), preserve the schema in your queries
 - String concatenation uses + operator
 - Use GETDATE() for current timestamp
 - Use DATEDIFF() for date calculations
