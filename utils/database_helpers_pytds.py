@@ -784,22 +784,40 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
             return error_msg
 
     def list_tables(self, schema: str | None = None) -> list[str]:
-        """List all tables and views in the database or schema
+        """List all tables and views in the database or schema(s)
 
         Args:
-            schema: Schema name to filter tables and views
+            schema: Schema name to filter tables and views (optional)
 
         Returns:
-            List of table and view names
+            List of table and view names, prefixed with schema if multiple schemas
         """
-        schema = schema or self._credentials.db_schema
+        # Get schemas to query
+        if schema:
+            schemas = [schema]
+        else:
+            schemas = self._credentials.get_schemas_list()
+        
+        # Build schema filter
+        if len(schemas) == 1:
+            schema_filter = f"TABLE_SCHEMA = '{schemas[0]}'"
+        else:
+            schema_list = "', '".join(schemas)
+            schema_filter = f"TABLE_SCHEMA IN ('{schema_list}')"
 
         query = f"""
-        SELECT TABLE_NAME, TABLE_TYPE
+        SELECT 
+            CASE 
+                WHEN TABLE_SCHEMA != 'dbo' OR {len(schemas)} > 1
+                THEN TABLE_SCHEMA + '.' + TABLE_NAME
+                ELSE TABLE_NAME
+            END AS TABLE_NAME,
+            TABLE_TYPE,
+            TABLE_SCHEMA
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_TYPE IN ('BASE TABLE', 'VIEW') 
-        AND TABLE_SCHEMA = '{schema}'
-        ORDER BY TABLE_TYPE, TABLE_NAME
+        AND {schema_filter}
+        ORDER BY TABLE_SCHEMA, TABLE_TYPE, TABLE_NAME
         """
 
         try:
@@ -833,13 +851,19 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         """Get the schema information for a table or view
 
         Args:
-            table_name: Name of the table or view
-            schema: Schema name
+            table_name: Name of the table or view (can be schema-qualified like 'hr.employees')
+            schema: Schema name (optional if table_name is schema-qualified)
 
         Returns:
             String representation of table/view schema
         """
-        schema = schema or self._credentials.db_schema
+        # Handle schema-qualified table names
+        if '.' in table_name and not schema:
+            parts = table_name.split('.', 1)
+            schema = parts[0]
+            table_name = parts[1]
+        else:
+            schema = schema or self._credentials.db_schema
 
         query = f"""
         SELECT 
