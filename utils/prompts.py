@@ -399,6 +399,7 @@ SQL SERVER SPECIFIC CONSIDERATIONS:
 - Use square brackets [] for identifiers with spaces or reserved words
 - For schema-qualified tables, use format [schema].[table] (e.g., [hr].[employees], [finance].[transactions])
 - When table names are provided with schema prefix (e.g., 'hr.employees'), preserve the schema in your queries
+- MULTI-SCHEMA SUPPORT: When multiple schemas are configured, tables will be presented with schema prefixes. Always use the full schema.table format in queries when provided (e.g., hr.employees, finance.budgets, inventory.products)
 - String concatenation uses + operator
 - Use GETDATE() for current timestamp
 - Use DATEDIFF() for date calculations
