@@ -103,6 +103,10 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         """
         # Debug logging to check what credentials are being received
         import os
+        from pathlib import Path
+        logger.info(f"DEBUG: Current working directory: {os.getcwd()}")
+        logger.info(f"DEBUG: .env file exists at {Path('.env').absolute()}: {Path('.env').exists()}")
+        logger.info(f"DEBUG: .env file exists at /opt/code/.env: {Path('/opt/code/.env').exists()}")
         logger.info(f"DEBUG: Environment AZURE_SQL_SCHEMAS={os.getenv('AZURE_SQL_SCHEMAS')}")
         logger.info(f"DEBUG: Credentials db_schemas={credentials.db_schemas}")
         logger.info(f"DEBUG: Credentials db_schema={credentials.db_schema}")
@@ -981,8 +985,15 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         names = []
         try:
             for table in table_names:
-                # Use schema-qualified table name
-                qualified_table = f"[{self._credentials.db_schema}].[{table}]"
+                # Parse table name to handle schema qualification properly
+                if "." in table:
+                    # Table already has schema prefix (e.g., "EliteProspects.vwActiveNHLGoalies")
+                    schema_name, table_name = table.split(".", 1)
+                    qualified_table = f"[{schema_name}].[{table_name}]"
+                else:
+                    # Table doesn't have schema prefix, use default schema
+                    qualified_table = f"[{self._credentials.db_schema}].[{table}]"
+                    
                 query = f"SELECT TOP {sample_size} * FROM {qualified_table}"
 
                 try:
