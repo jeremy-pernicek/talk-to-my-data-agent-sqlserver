@@ -22,7 +22,14 @@ from pydantic import AliasChoices, AliasPath, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
-class DRCredentials(BaseSettings): ...
+class DRCredentials(BaseSettings):
+    """Base class for credentials that loads from .env file"""
+    
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 class AzureOpenAICredentials(DRCredentials):
