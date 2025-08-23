@@ -256,6 +256,11 @@ def get_credential_runtime_parameter_values(
                 "value": credentials.db_schema,
             },
             {
+                "key": "AZURE_SQL_SCHEMAS",
+                "type": "string",
+                "value": ",".join(credentials.db_schemas) if credentials.db_schemas else None,
+            },
+            {
                 "key": "AZURE_SQL_DRIVER",
                 "type": "string",
                 "value": credentials.driver,
