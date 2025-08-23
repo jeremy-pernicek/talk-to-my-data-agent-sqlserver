@@ -101,6 +101,13 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
             default_timeout: Default query timeout in seconds
             pushdown_config: Configuration for pushdown optimization
         """
+        # Debug logging to check what credentials are being received
+        import os
+        logger.info(f"DEBUG: Environment AZURE_SQL_SCHEMAS={os.getenv('AZURE_SQL_SCHEMAS')}")
+        logger.info(f"DEBUG: Credentials db_schemas={credentials.db_schemas}")
+        logger.info(f"DEBUG: Credentials db_schema={credentials.db_schema}")
+        logger.info(f"DEBUG: get_schemas_list() returns: {credentials.get_schemas_list()}")
+        
         if pytds is None:
             raise ImportError(
                 "pytds is required for SQL Server operations but is not installed"
