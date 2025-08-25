@@ -1514,7 +1514,8 @@ async def run_complete_analysis(
         analysis_result 
         and analysis_result.dataset 
         and hasattr(analysis_result.dataset, 'data') 
-        and len(analysis_result.dataset.data) == 0
+        and hasattr(analysis_result.dataset.data, 'df')
+        and len(analysis_result.dataset.data.df) == 0
     )
     
     if has_empty_results:
