@@ -1302,6 +1302,15 @@ async def _run_database_analysis(
         results = cast(list[dict[str, Any]], results)
         duration = datetime.now() - start_time
 
+        # Handle empty results gracefully - this is valid information, not an error
+        if not results:
+            logger.info(
+                f"Query executed successfully but returned 0 rows. "
+                f"This is valid information - the query may be too restrictive or there may be no matching data."
+            )
+            # Return an empty dataset - this is a valid result
+            results = []
+
     except InvalidGeneratedCode:
         raise
     except Exception as e:
@@ -1500,10 +1509,49 @@ async def run_complete_analysis(
 
         return
 
-    # Only proceed with additional analysis if we have valid initial results
+    # Check if we have empty results
+    has_empty_results = (
+        analysis_result 
+        and analysis_result.dataset 
+        and hasattr(analysis_result.dataset, 'data') 
+        and len(analysis_result.dataset.data) == 0
+    )
+    
+    if has_empty_results:
+        # Add a note about empty results but don't treat as error
+        logger.info("Query returned 0 rows. Skipping chart and insights generation.")
+        # The analysis_result already contains the query and empty dataset
+        # which will be displayed to the user
+        
+        # Add a simple business result explaining the zero results
+        empty_result_message = GetBusinessAnalysisResult(
+            status="success",
+            bottom_line="The query returned 0 results. This may indicate that the search criteria are too restrictive or there is no data matching the specified conditions.",
+            additional_insights="Consider:\n• Using broader search criteria\n• Checking if the data exists with simpler filters\n• Verifying column values match the actual data\n• Using LIKE patterns instead of exact matches",
+            follow_up_questions=[
+                "What data is actually available in the database?",
+                "Can we see a sample of records without filters?",
+                "What are the distinct values for the columns being filtered?"
+            ],
+            metadata=GetBusinessAnalysisMetadata(
+                duration=0,
+                attempts=1,
+                rows_analyzed=0,
+                columns_analyzed=0,
+            )
+        )
+        
+        assistant_message.components.append(empty_result_message)
+        await analyst_db.update_chat_message(
+            message_id=assistant_message.id, message=assistant_message
+        )
+        yield empty_result_message
+    
+    # Only proceed with additional analysis if we have valid initial results with data
     if not (
         analysis_result
         and analysis_result.dataset
+        and not has_empty_results  # Skip if empty
         and (enable_chart_generation or enable_business_insights)
     ):
         assistant_message.in_progress = False

@@ -518,6 +518,18 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                             logger.info(f"Query returned {len(rows)} rows successfully in {execution_time:.2f}s")
                         return rows
                     else:
+                        # Handle empty result gracefully with informative logging
+                        if cursor.description:
+                            # Query executed successfully but returned 0 rows - this is valid information
+                            columns = [desc[0] for desc in cursor.description]
+                            logger.info(
+                                f"Query executed successfully but returned 0 rows. "
+                                f"Expected columns: {columns}. "
+                                f"This may indicate restrictive WHERE clauses or no matching data exists."
+                            )
+                        else:
+                            # Non-SELECT query (INSERT, UPDATE, DELETE, etc.)
+                            logger.info("Query executed successfully (non-SELECT query)")
                         return []
 
                 finally:

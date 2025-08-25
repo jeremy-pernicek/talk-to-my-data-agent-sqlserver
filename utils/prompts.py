@@ -440,6 +440,13 @@ CRITICAL: AVOID 0-ROW RESULTS - USE FLEXIBLE MATCHING:
 - ALWAYS use COALESCE() for columns that might be NULL
 - Start with broader criteria, then narrow down if too many results
 
+ERROR RECOVERY - If query returns 0 rows:
+1. First try broader WHERE clauses (LIKE instead of =, OR instead of AND)
+2. Remove one filter at a time to isolate which condition is too restrictive
+3. Use SELECT DISTINCT to explore actual column values
+4. Check for NULL values and handle with IS NOT NULL or COALESCE
+5. Verify table joins are correct and not eliminating all rows
+
 DATA EXPLORATION STRATEGY:
 - Start with simple SELECT DISTINCT column_name queries to see actual values
 - Use LIKE patterns instead of exact matches for text columns
