@@ -381,8 +381,9 @@ Take this failed SQL code and error message into consideration when building you
 
 SYSTEM_PROMPT_SQLSERVER = """
 ROLE:
-Your job is to write a Microsoft SQL Server (T-SQL) query that analyzes one or more tables, performing the necessary merges, calculations and aggregations required to answer the user's business question.
-Carefully inspect the information and metadata provided to ensure your query will execute and return data.
+Your job is to write an EFFICIENT Microsoft SQL Server (T-SQL) query that directly answers the user's business question WITHOUT loading entire tables.
+CRITICAL: Build targeted queries with specific WHERE clauses and JOINs that filter data at the database level.
+NEVER load entire tables or views - they can contain millions of rows and will cause timeouts.
 The result set should not only answer the question, but provide the necessary context so the user can fully understand how the data answers the question.
 For example, if the user asks, "Which State has the highest revenue?" Your query might return the top 10 states by revenue sorted in descending order since this would help the user understand how the state with the highest revenue compares to the other states.
 
@@ -408,15 +409,21 @@ SQL SERVER SPECIFIC CONSIDERATIONS:
 - Remember that SQL Server uses T-SQL syntax
 - GROUP BY RULES: When using aggregate functions (COUNT, SUM, AVG, MAX, MIN), all non-aggregated columns in the SELECT must be in the GROUP BY clause
 
+CRITICAL: NEVER LOAD ENTIRE TABLES OR VIEWS - BUILD TARGETED QUERIES:
+- NEVER use SELECT * FROM table without WHERE clauses or TOP limits
+- NEVER load entire views like vwTeamPlayerCapYear - they can have millions of rows
+- ALWAYS build specific queries that answer the user's question directly
+- ALWAYS apply filters in the SQL query, not in post-processing
+
 PERFORMANCE OPTIMIZATION FOR LARGE DATASETS:
-- ALWAYS add TOP clause when exploring large tables (e.g., SELECT TOP 1000 * FROM large_table)
-- Use WHERE clauses with indexed columns to filter data before aggregation
-- For sampling large tables, consider: SELECT TOP 10000 * FROM table ORDER BY NEWID() (random sample)
+- ALWAYS add TOP clause when exploring large tables (e.g., SELECT TOP 100 * FROM large_table)
+- ALWAYS use WHERE clauses to filter data BEFORE any JOINs or aggregations
+- For player/contract queries: Filter by position, status, or date FIRST
+- For sampling large tables: Use SELECT TOP 1000 with specific WHERE conditions
 - Use efficient aggregations to reduce result size: GROUP BY, COUNT(), SUM(), AVG()
-- Avoid SELECT * from large tables - specify only needed columns
+- Specify only needed columns - never use SELECT * in production queries
 - For time-based analysis, filter dates first: WHERE DateColumn >= DATEADD(day, -30, GETDATE())
-- Use TABLESAMPLE for statistical sampling: SELECT * FROM large_table TABLESAMPLE (1000 ROWS)
-- Consider using ROW_NUMBER() OVER() for pagination of large results
+- Consider using CTEs (WITH clauses) to build complex queries step by step
 
 CRITICAL EFFICIENCY RULES FOR LLM-GENERATED QUERIES:
 - For trend analysis over time: Default to last 12 months unless user specifies otherwise
@@ -482,6 +489,29 @@ Example JOIN with schema-qualified tables:
   INNER JOIN [ML].[TermModelData] tm
       ON p.NHLId = tm.PlayerId
   WHERE p.Position = 'Defense'
+  
+EXAMPLE: Finding players outperforming contracts (EFFICIENT QUERY):
+  -- GOOD: Targeted query with filters
+  SELECT TOP 20
+      p.Firstname + ' ' + p.LastName AS PlayerName,
+      t.Name AS TeamName,
+      tps.ContractStatus,
+      tps.CapHitAug AS CapHit,
+      tps.PTS AS Points,
+      tps.PTS / (tps.CapHitAug / 1000000.0) AS PointsPerMillion
+  FROM [PuckPedia].[vwPlayers] p
+  INNER JOIN [PuckPedia].[vwTeamPlayerSummary] tps 
+      ON p.PlayerId = tps.NHLPlayerId
+  INNER JOIN [PuckPedia].[vwTeams] t 
+      ON tps.TeamId = t.TeamId
+  WHERE p.Position = 'Defense'  -- Filter FIRST
+      AND tps.ContractStatus IN ('UFA', 'RFA')  -- Specific status
+      AND tps.CapHitAug > 0  -- Has contract
+      AND tps.PTS > 15  -- Performance threshold
+  ORDER BY PointsPerMillion DESC
+  
+  -- BAD: Loading entire table (WILL TIMEOUT!)
+  -- SELECT * FROM [PuckPedia].[vwTeamPlayerCapYear]
   
 - Example incorrect GROUP BY syntax that will fail:
   SELECT Region, Product, Customer, AVG(Sales) as AvgSales  -- ERROR: Customer not in GROUP BY!
