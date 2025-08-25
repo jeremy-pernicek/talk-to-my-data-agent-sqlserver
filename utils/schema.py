@@ -287,6 +287,45 @@ class DataDictionaryResponse(DataDictionary):
     in_progress: bool = False
 
 
+class TableSampleValues(BaseModel):
+    """Sample values and metadata for a database table column"""
+    column_name: str
+    data_type: str
+    sample_values: list[str]  # Top 10 most frequent values
+    null_count: int
+    total_rows: int
+    distinct_count: int
+    
+    
+class TableExplorationResult(BaseModel):
+    """Complete exploration results for a database table"""
+    table_name: str
+    row_count: int
+    column_samples: list[TableSampleValues]
+    join_key_analysis: dict[str, int]  # potential join keys and their match counts
+    
+
+class SchemaRelationship(BaseModel):
+    """Relationship between two tables"""
+    left_table: str
+    right_table: str
+    left_column: str
+    right_column: str
+    match_count: int
+    total_left: int
+    total_right: int
+    match_percentage: float
+    
+
+class QueryDiagnostic(BaseModel):
+    """Diagnostic information about a failed query"""
+    original_query: str
+    step_results: dict[str, int]  # Each filter step and resulting row count
+    problematic_filters: list[str]
+    suggested_fixes: list[str]
+    alternative_values: dict[str, list[str]]  # Alternative values for failed filters
+
+
 class DictionaryGeneration(BaseModel):
     """Validates LLM responses for data dictionary generation
 

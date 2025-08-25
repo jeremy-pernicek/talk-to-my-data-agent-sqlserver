@@ -1189,6 +1189,330 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
             logger.error("This may indicate a fundamental connection or configuration issue")
             return []
 
+    async def explore_table_schema(self, table_name: str, sample_size: int = 1000) -> "TableExplorationResult":
+        """
+        Explore a table's schema, sample values, and metadata for better query generation.
+        
+        Args:
+            table_name: Name of the table to explore (can be schema.table format)
+            sample_size: Number of rows to sample for analysis
+            
+        Returns:
+            TableExplorationResult with comprehensive table metadata
+        """
+        from utils.schema import TableExplorationResult, TableSampleValues
+        
+        # Parse table name for schema qualification
+        if "." in table_name:
+            schema_name, table_part = table_name.split(".", 1)
+            qualified_table = f"[{schema_name}].[{table_part}]"
+        else:
+            qualified_table = f"[{self._credentials.db_schema}].[{table_name}]"
+        
+        try:
+            # Get basic table info
+            count_query = f"SELECT COUNT(*) as row_count FROM {qualified_table}"
+            count_result = self.execute_query(count_query, timeout=30)
+            total_rows = count_result[0]["row_count"] if count_result else 0
+            
+            # Get column information
+            info_query = f"""
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE,
+                IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = '{table_part if '.' in table_name else table_name}'
+                AND TABLE_SCHEMA = '{schema_name if '.' in table_name else self._credentials.db_schema}'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            column_info = self.execute_query(info_query, timeout=30)
+            
+            # Sample data for value analysis
+            sample_query = f"SELECT TOP {sample_size} * FROM {qualified_table}"
+            sample_data = self.execute_query(sample_query, timeout=60)
+            
+            # Analyze each column for sample values
+            column_samples = []
+            
+            for col_info in column_info:
+                col_name = col_info["COLUMN_NAME"]
+                data_type = col_info["DATA_TYPE"]
+                
+                # Get sample values for this column
+                if sample_data:
+                    values = [str(row.get(col_name, "")) for row in sample_data if row.get(col_name) is not None]
+                    non_null_values = [v for v in values if v and v != ""]
+                    
+                    # Get top 10 most frequent values
+                    from collections import Counter
+                    value_counts = Counter(non_null_values)
+                    sample_values = [val for val, count in value_counts.most_common(10)]
+                    
+                    null_count = len([v for v in values if not v or v == ""])
+                    distinct_count = len(set(non_null_values))
+                else:
+                    sample_values = []
+                    null_count = 0
+                    distinct_count = 0
+                
+                column_samples.append(TableSampleValues(
+                    column_name=col_name,
+                    data_type=data_type,
+                    sample_values=sample_values,
+                    null_count=null_count,
+                    total_rows=len(sample_data) if sample_data else 0,
+                    distinct_count=distinct_count
+                ))
+            
+            # Analyze potential join keys (columns ending with Id or containing common key patterns)
+            join_key_analysis = {}
+            for col_info in column_info:
+                col_name = col_info["COLUMN_NAME"]
+                if any(pattern in col_name.lower() for pattern in ['id', 'key', 'playerid', 'teamid']):
+                    # Count non-null distinct values for potential join keys
+                    distinct_query = f"""
+                    SELECT COUNT(DISTINCT {col_name}) as distinct_count
+                    FROM {qualified_table}
+                    WHERE {col_name} IS NOT NULL
+                    """
+                    try:
+                        distinct_result = self.execute_query(distinct_query, timeout=30)
+                        if distinct_result:
+                            join_key_analysis[col_name] = distinct_result[0]["distinct_count"]
+                    except Exception:
+                        join_key_analysis[col_name] = 0
+            
+            return TableExplorationResult(
+                table_name=table_name,
+                row_count=total_rows,
+                column_samples=column_samples,
+                join_key_analysis=join_key_analysis
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to explore table {table_name}: {str(e)}")
+            # Return minimal result on failure
+            return TableExplorationResult(
+                table_name=table_name,
+                row_count=0,
+                column_samples=[],
+                join_key_analysis={}
+            )
+
+    async def validate_schema_relationships(self, tables: list[str]) -> list["SchemaRelationship"]:
+        """
+        Validate relationships between tables by checking join key compatibility.
+        
+        Args:
+            tables: List of table names to analyze relationships between
+            
+        Returns:
+            List of SchemaRelationship objects with join analysis
+        """
+        from utils.schema import SchemaRelationship
+        
+        relationships = []
+        
+        # Check each pair of tables
+        for i, table1 in enumerate(tables):
+            for table2 in tables[i+1:]:
+                try:
+                    # Get exploration results for both tables
+                    table1_info = await self.explore_table_schema(table1)
+                    table2_info = await self.explore_table_schema(table2)
+                    
+                    # Look for potential join keys
+                    table1_join_keys = table1_info.join_key_analysis.keys()
+                    table2_join_keys = table2_info.join_key_analysis.keys()
+                    
+                    # Check for matching key patterns
+                    for key1 in table1_join_keys:
+                        for key2 in table2_join_keys:
+                            if self._keys_might_match(key1, key2):
+                                # Test actual join compatibility
+                                match_info = await self._test_join_compatibility(table1, table2, key1, key2)
+                                if match_info["match_count"] > 0:
+                                    relationships.append(SchemaRelationship(
+                                        left_table=table1,
+                                        right_table=table2,
+                                        left_column=key1,
+                                        right_column=key2,
+                                        **match_info
+                                    ))
+                                    
+                except Exception as e:
+                    logger.warning(f"Failed to analyze relationship between {table1} and {table2}: {str(e)}")
+                    continue
+        
+        return relationships
+
+    def _keys_might_match(self, key1: str, key2: str) -> bool:
+        """Check if two column names might be joinable keys"""
+        # Direct match
+        if key1.lower() == key2.lower():
+            return True
+            
+        # Common patterns
+        patterns = [
+            ("playerid", "nhlplayerid"),
+            ("teamid", "teamid"),
+            ("id", "id"),
+        ]
+        
+        key1_lower = key1.lower()
+        key2_lower = key2.lower()
+        
+        for pattern1, pattern2 in patterns:
+            if (pattern1 in key1_lower and pattern2 in key2_lower) or \
+               (pattern2 in key1_lower and pattern1 in key2_lower):
+                return True
+                
+        return False
+
+    def create_hockey_terminology_mappings(self) -> dict[str, list[str]]:
+        """
+        Create mappings for hockey terminology to handle variations in data values.
+        
+        Returns:
+            Dictionary mapping canonical terms to list of possible variations
+        """
+        return {
+            # Player positions
+            "defense": ["Defense", "D", "Defenseman", "Defenceman", "DEF", "RD", "LD"],
+            "forward": ["Forward", "F", "FWD", "Left Wing", "Right Wing", "Center", "Centre", "LW", "RW", "C"],
+            "center": ["Center", "Centre", "C", "CTR"],
+            "wing": ["Wing", "Left Wing", "Right Wing", "LW", "RW", "W"],
+            "goalie": ["Goalie", "Goalkeeper", "G", "Goaltender", "GTD"],
+            
+            # Contract statuses  
+            "ufa": ["UFA", "Unrestricted Free Agent", "Free Agent", "FA", "Unrestricted"],
+            "rfa": ["RFA", "Restricted Free Agent", "Restricted", "RF"],
+            "signed": ["Signed", "Under Contract", "Active", "Contract"],
+            "expired": ["Expired", "Exp", "Free", "Available"],
+            
+            # Team-related terms
+            "active": ["Active", "Current", "Playing", "Roster"],
+            "inactive": ["Inactive", "Benched", "Scratched", "Injured"],
+            
+            # Time-related terms
+            "current_season": ["2024-25", "2024", "Current", "This Season"],
+            "next_season": ["2025-26", "2025", "Next", "Upcoming"],
+            "expiring": ["Expiring", "Expires", "Contract End", "Final Year"],
+        }
+
+    def expand_search_terms(self, term: str, context: str = "") -> list[str]:
+        """
+        Expand a search term to include common variations and synonyms.
+        
+        Args:
+            term: The original search term
+            context: Context to help determine the best expansions
+            
+        Returns:
+            List of expanded terms to use in queries
+        """
+        term_lower = term.lower()
+        mappings = self.create_hockey_terminology_mappings()
+        
+        expanded_terms = [term]  # Always include original term
+        
+        # Find matching expansions
+        for canonical, variations in mappings.items():
+            if term_lower == canonical or term_lower in [v.lower() for v in variations]:
+                expanded_terms.extend(variations)
+                break
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        result = []
+        for t in expanded_terms:
+            if t.lower() not in seen:
+                seen.add(t.lower())
+                result.append(t)
+                
+        return result
+
+    def create_flexible_where_clause(self, column: str, value: str, context: str = "") -> str:
+        """
+        Create a flexible WHERE clause that handles term variations.
+        
+        Args:
+            column: Column name to filter on
+            value: Value to search for
+            context: Context to help determine the best approach
+            
+        Returns:
+            SQL WHERE clause with expanded search terms
+        """
+        expanded_terms = self.expand_search_terms(value, context)
+        
+        if len(expanded_terms) == 1:
+            # Simple case - just use LIKE for flexibility
+            return f"{column} LIKE '%{expanded_terms[0]}%'"
+        else:
+            # Multiple terms - create OR conditions
+            conditions = []
+            for term in expanded_terms:
+                if len(term) <= 3:  # Short terms like 'D', 'C' - use exact match
+                    conditions.append(f"{column} = '{term}'")
+                else:
+                    conditions.append(f"{column} LIKE '%{term}%'")
+            
+            return f"({' OR '.join(conditions)})"
+
+    async def _test_join_compatibility(self, table1: str, table2: str, key1: str, key2: str) -> dict:
+        """Test if two tables can be joined on specified keys"""
+        
+        # Parse table names for proper qualification
+        def qualify_table(table_name):
+            if "." in table_name:
+                schema_name, table_part = table_name.split(".", 1)
+                return f"[{schema_name}].[{table_part}]"
+            else:
+                return f"[{self._credentials.db_schema}].[{table_name}]"
+        
+        qualified_table1 = qualify_table(table1)
+        qualified_table2 = qualify_table(table2)
+        
+        try:
+            # Test join and count matches
+            test_query = f"""
+            SELECT 
+                COUNT(*) as match_count,
+                (SELECT COUNT(*) FROM {qualified_table1}) as total_left,
+                (SELECT COUNT(*) FROM {qualified_table2}) as total_right
+            FROM {qualified_table1} t1
+            INNER JOIN {qualified_table2} t2 ON t1.{key1} = t2.{key2}
+            """
+            
+            result = self.execute_query(test_query, timeout=30)
+            
+            if result:
+                match_count = result[0]["match_count"]
+                total_left = result[0]["total_left"]
+                total_right = result[0]["total_right"]
+                
+                match_percentage = (match_count / total_left * 100) if total_left > 0 else 0
+                
+                return {
+                    "match_count": match_count,
+                    "total_left": total_left,
+                    "total_right": total_right,
+                    "match_percentage": match_percentage
+                }
+            
+        except Exception as e:
+            logger.warning(f"Join test failed for {table1}.{key1} = {table2}.{key2}: {str(e)}")
+        
+        return {
+            "match_count": 0,
+            "total_left": 0,
+            "total_right": 0,
+            "match_percentage": 0.0
+        }
+
     def get_object_type(
         self, object_name: str, schema: str | None = None
     ) -> str | None:

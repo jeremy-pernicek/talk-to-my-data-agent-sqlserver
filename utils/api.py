@@ -1371,20 +1371,122 @@ async def _validate_column_names_in_query(query: str, dictionaries: list, table_
     
     return validation_errors
 
+async def _explore_and_validate_schema(
+    request: RunDatabaseAnalysisRequest,
+    analyst_db: AnalystDB
+) -> dict:
+    """
+    Explore table schemas and relationships before generating complex queries.
+    
+    Returns:
+        Dictionary containing exploration results and validation info
+    """
+    db_operator = get_external_database()
+    
+    exploration_results = {}
+    schema_relationships = []
+    
+    try:
+        # Explore each table's schema and sample values
+        for table_name in request.dataset_names:
+            if hasattr(db_operator, 'explore_table_schema'):
+                exploration = await db_operator.explore_table_schema(table_name, sample_size=500)
+                exploration_results[table_name] = exploration
+                logger.info(f"Explored table {table_name}: {exploration.row_count} rows, {len(exploration.column_samples)} columns")
+        
+        # Validate relationships between tables
+        if len(request.dataset_names) > 1 and hasattr(db_operator, 'validate_schema_relationships'):
+            schema_relationships = await db_operator.validate_schema_relationships(request.dataset_names)
+            logger.info(f"Found {len(schema_relationships)} valid table relationships")
+            
+    except Exception as e:
+        logger.warning(f"Schema exploration failed: {str(e)}")
+    
+    return {
+        "explorations": exploration_results,
+        "relationships": schema_relationships
+    }
+
+async def _create_enhanced_schema_context(
+    exploration_results: dict,
+    dictionaries: list,
+    request: RunDatabaseAnalysisRequest
+) -> str:
+    """
+    Create enhanced schema context with sample values and relationship information.
+    """
+    context_parts = []
+    
+    # Add column validation section
+    column_info = []
+    for dictionary in dictionaries:
+        if dictionary and dictionary.column_descriptions:
+            table_name = dictionary.name
+            columns = [col.column for col in dictionary.column_descriptions]
+            column_info.append(f"Table {table_name} has columns: {', '.join(columns)}")
+    
+    context_parts.append(f"""
+CRITICAL COLUMN VALIDATION:
+The following are the EXACT column names available in each table:
+{chr(10).join(column_info)}
+
+IMPORTANT: Only use these exact column names in your query. Do not invent or assume column names.
+If you need similar functionality, use the closest matching column name from the list above.
+""")
+
+    # Add sample values context
+    explorations = exploration_results.get("explorations", {})
+    if explorations:
+        context_parts.append("\nSAMPLE VALUES FOR KEY COLUMNS:")
+        for table_name, exploration in explorations.items():
+            context_parts.append(f"\nTable: {table_name}")
+            for col_sample in exploration.column_samples:
+                if col_sample.sample_values and len(col_sample.sample_values) > 0:
+                    values_str = ", ".join(col_sample.sample_values[:5])  # Show top 5
+                    context_parts.append(f"  {col_sample.column_name}: {values_str}")
+
+    # Add relationship information
+    relationships = exploration_results.get("relationships", [])
+    if relationships:
+        context_parts.append("\nVALID TABLE RELATIONSHIPS:")
+        for rel in relationships:
+            match_pct = rel.match_percentage
+            context_parts.append(f"  {rel.left_table}.{rel.left_column} = {rel.right_table}.{rel.right_column} ({match_pct:.1f}% match)")
+
+    # Add hockey terminology guidance
+    db_operator = get_external_database()
+    if hasattr(db_operator, 'create_hockey_terminology_mappings'):
+        mappings = db_operator.create_hockey_terminology_mappings()
+        context_parts.append(f"""
+HOCKEY TERMINOLOGY MAPPINGS:
+When filtering by common hockey terms, use these variations for better results:
+- Position "Defense": Try {mappings.get('defense', [])}
+- Contract Status "UFA": Try {mappings.get('ufa', [])}
+- Contract Status "RFA": Try {mappings.get('rfa', [])}
+
+Use flexible WHERE clauses with OR conditions to include multiple variations.
+""")
+
+    return "\n".join(context_parts)
+
 async def _generate_database_analysis_code(
     request: RunDatabaseAnalysisRequest,
     analyst_db: AnalystDB,
     validation_error: InvalidGeneratedCode | None = None,
 ) -> str:
     """
-    Generate SQL Server SQL analysis code based on data samples and question.
+    Generate SQL Server SQL analysis code with enhanced schema exploration and validation.
 
     Parameters:
     - request: DatabaseAnalysisRequest containing data samples and question
 
     Returns:
-    - Generated SQL code string with validation
+    - Generated SQL code string with comprehensive validation
     """
+
+    # Phase 1: Explore schema and relationships
+    logger.info("Exploring table schemas and relationships...")
+    exploration_results = await _explore_and_validate_schema(request, analyst_db)
 
     # Convert dictionary data structure to list of columns for all tables
     dictionaries = [
@@ -1394,31 +1496,17 @@ async def _generate_database_analysis_code(
 
     # Get sample data for all tables
     all_samples = []
-
     for table in request.dataset_names:
         df = (await analyst_db.get_dataset(table)).to_df().to_pandas()
-
         sample_str = f"Table: {table}\n{df.head(10).to_string()}"
         all_samples.append(sample_str)
         
-    # Create enhanced prompt with column name validation guidance
-    column_info = []
-    for dictionary in dictionaries:
-        if dictionary and dictionary.column_descriptions:
-            table_name = dictionary.name
-            columns = [col.column for col in dictionary.column_descriptions]
-            column_info.append(f"Table {table_name} has columns: {', '.join(columns)}")
-    
-    validation_guidance = f"""
-CRITICAL COLUMN VALIDATION:
-The following are the EXACT column names available in each table:
-{chr(10).join(column_info)}
+    # Create enhanced schema context with exploration results
+    schema_context = await _create_enhanced_schema_context(
+        exploration_results, dictionaries, request
+    )
 
-IMPORTANT: Only use these exact column names in your query. Do not invent or assume column names.
-If you need similar functionality, use the closest matching column name from the list above.
-"""
-
-    # Create messages for OpenAI
+    # Create messages for OpenAI with enhanced context
     messages: list[ChatCompletionMessageParam] = [
         get_external_database().get_system_prompt(),
         ChatCompletionUserMessageParam(
@@ -1426,7 +1514,7 @@ If you need similar functionality, use the closest matching column name from the
             role="user",
         ),
         ChatCompletionUserMessageParam(
-            content=validation_guidance, role="user"
+            content=schema_context, role="user"
         ),
         ChatCompletionUserMessageParam(
             content=f"Sample Data:\n{chr(10).join(all_samples)}", role="user"
@@ -1463,15 +1551,195 @@ If you need similar functionality, use the closest matching column name from the
             messages=messages,
         )
 
-    # Validate column names in the generated query
-    validation_errors = await _validate_column_names_in_query(completion.code, dictionaries, request.dataset_names)
+    generated_query = completion.code
+    
+    # Phase 2: Enhanced query validation and diagnostic preparation
+    validation_errors = await _validate_column_names_in_query(generated_query, dictionaries, request.dataset_names)
     if validation_errors:
         error_msg = "Column validation failed: " + "; ".join(validation_errors)
         logger.warning(f"Generated query has column validation issues: {error_msg}")
-        # Don't fail immediately - let the database execution catch the error
-        # This way we get the database's specific error message which may be more helpful
+        # Store validation info for potential fallback
     
-    return completion.code
+    return generated_query
+
+
+async def _diagnose_query_failure(
+    failed_query: str,
+    request: RunDatabaseAnalysisRequest,
+    analyst_db: AnalystDB,
+    error_message: str
+) -> "QueryDiagnostic":
+    """
+    Diagnose why a query failed and suggest fixes.
+    
+    Args:
+        failed_query: The SQL query that failed
+        request: Original request for context
+        analyst_db: Database instance
+        error_message: Error message from the failed query
+        
+    Returns:
+        QueryDiagnostic with analysis and suggestions
+    """
+    from utils.schema import QueryDiagnostic
+    
+    db_operator = get_external_database()
+    
+    diagnostic = QueryDiagnostic(
+        original_query=failed_query,
+        step_results={},
+        problematic_filters=[],
+        suggested_fixes=[],
+        alternative_values={}
+    )
+    
+    try:
+        # Parse the query to understand its structure
+        query_upper = failed_query.upper()
+        
+        # Extract WHERE clause conditions
+        where_conditions = _extract_where_conditions(failed_query)
+        
+        # Test each filter condition individually
+        base_tables = _extract_tables_from_query(failed_query)
+        
+        if base_tables:
+            # Start with a simple count from the main table
+            main_table = base_tables[0]
+            
+            # Test table accessibility
+            try:
+                test_query = f"SELECT TOP 1 * FROM {main_table}"
+                test_result = db_operator.execute_query(test_query, timeout=30)
+                if test_result:
+                    diagnostic.step_results["base_table_accessible"] = 1
+                else:
+                    diagnostic.step_results["base_table_accessible"] = 0
+                    diagnostic.problematic_filters.append(f"Cannot access table {main_table}")
+            except Exception as e:
+                diagnostic.step_results["base_table_accessible"] = 0
+                diagnostic.problematic_filters.append(f"Table access error: {str(e)}")
+            
+            # Test individual WHERE conditions
+            for condition in where_conditions:
+                try:
+                    test_query = f"SELECT COUNT(*) as count FROM {main_table} WHERE {condition}"
+                    result = db_operator.execute_query(test_query, timeout=30)
+                    if result:
+                        count = result[0]["count"]
+                        diagnostic.step_results[f"filter_{condition[:50]}"] = count
+                        if count == 0:
+                            diagnostic.problematic_filters.append(condition)
+                            
+                            # Try to find alternative values for this condition
+                            alternatives = await _find_alternative_values(condition, main_table, db_operator)
+                            if alternatives:
+                                diagnostic.alternative_values[condition] = alternatives
+                                
+                except Exception as e:
+                    diagnostic.step_results[f"filter_{condition[:50]}"] = -1
+                    diagnostic.problematic_filters.append(f"{condition}: {str(e)}")
+        
+        # Generate suggestions based on findings
+        diagnostic.suggested_fixes = _generate_fix_suggestions(diagnostic, request.question)
+        
+    except Exception as e:
+        logger.error(f"Query diagnosis failed: {str(e)}")
+        diagnostic.suggested_fixes = ["Try simplifying the query with fewer filters"]
+    
+    return diagnostic
+
+
+def _extract_where_conditions(query: str) -> list[str]:
+    """Extract individual WHERE conditions from a SQL query"""
+    import re
+    
+    # Find the WHERE clause
+    where_match = re.search(r'WHERE\s+(.*?)(?:\s+ORDER\s+BY|\s+GROUP\s+BY|$)', query, re.IGNORECASE | re.DOTALL)
+    if not where_match:
+        return []
+    
+    where_clause = where_match.group(1).strip()
+    
+    # Split on AND (simple approach - could be enhanced for nested conditions)
+    conditions = [cond.strip() for cond in re.split(r'\s+AND\s+', where_clause, flags=re.IGNORECASE)]
+    
+    return conditions
+
+
+def _extract_tables_from_query(query: str) -> list[str]:
+    """Extract table names from a SQL query"""
+    import re
+    
+    # Find FROM clause
+    from_match = re.search(r'FROM\s+(.*?)(?:\s+WHERE|\s+ORDER\s+BY|\s+GROUP\s+BY|$)', query, re.IGNORECASE | re.DOTALL)
+    if not from_match:
+        return []
+    
+    from_clause = from_match.group(1).strip()
+    
+    # Extract first table (main table)
+    # Handle joins by splitting on INNER JOIN, LEFT JOIN, etc.
+    main_table = re.split(r'\s+(?:INNER|LEFT|RIGHT|OUTER)\s+JOIN\s+', from_clause, flags=re.IGNORECASE)[0].strip()
+    
+    # Remove alias if present
+    main_table = re.split(r'\s+(?:AS\s+)?\w+$', main_table, flags=re.IGNORECASE)[0].strip()
+    
+    return [main_table]
+
+
+async def _find_alternative_values(condition: str, table: str, db_operator) -> list[str]:
+    """Find alternative values for a failed filter condition"""
+    import re
+    
+    alternatives = []
+    
+    try:
+        # Extract column name from condition (simple patterns)
+        column_match = re.search(r'(\w+)\s*[=<>]|(\w+)\s+(?:LIKE|IN)', condition, re.IGNORECASE)
+        if column_match:
+            column = column_match.group(1) or column_match.group(2)
+            
+            # Get top distinct values for this column
+            distinct_query = f"SELECT TOP 10 DISTINCT {column} as value FROM {table} WHERE {column} IS NOT NULL"
+            result = db_operator.execute_query(distinct_query, timeout=30)
+            
+            if result:
+                alternatives = [str(row["value"]) for row in result if row["value"]]
+                
+    except Exception as e:
+        logger.warning(f"Could not find alternatives for condition {condition}: {str(e)}")
+    
+    return alternatives
+
+
+def _generate_fix_suggestions(diagnostic: "QueryDiagnostic", original_question: str) -> list[str]:
+    """Generate fix suggestions based on diagnostic results"""
+    suggestions = []
+    
+    if not diagnostic.step_results.get("base_table_accessible", 1):
+        suggestions.append("Check table name and schema - the main table may not be accessible")
+        return suggestions
+    
+    if diagnostic.problematic_filters:
+        suggestions.append(f"Found {len(diagnostic.problematic_filters)} restrictive filters")
+        
+        for condition in diagnostic.problematic_filters[:3]:  # Show top 3
+            if condition in diagnostic.alternative_values:
+                alts = diagnostic.alternative_values[condition][:3]
+                suggestions.append(f"For '{condition}', try these values: {', '.join(alts)}")
+            else:
+                suggestions.append(f"Consider removing or relaxing filter: {condition}")
+    
+    # Add general suggestions based on the question
+    question_lower = original_question.lower()
+    if "defense" in question_lower:
+        suggestions.append("Try using broader position filters: Position LIKE '%D%' OR Position = 'Defense'")
+    
+    if "free agent" in question_lower:
+        suggestions.append("Try multiple contract status values: ContractStatus IN ('UFA', 'RFA', 'Free Agent')")
+    
+    return suggestions
 
 
 @reflect_code_generation_errors(max_attempts=7)
@@ -1717,7 +1985,7 @@ async def run_complete_analysis(
         # The analysis_result already contains the query and empty dataset
         # which will be displayed to the user
         
-        # Generate intelligent follow-up questions based on the failed query and schema
+        # Enhanced zero results handling with diagnostics
         try:
             # Get dictionaries for intelligent question generation
             dictionaries = []
@@ -1726,14 +1994,46 @@ async def run_complete_analysis(
                 if dictionary:
                     dictionaries.append(dictionary)
             
+            # Run diagnostic analysis on the failed query
+            diagnostic = None
+            if analysis_result and analysis_result.code:
+                try:
+                    diagnostic = await _diagnose_query_failure(
+                        analysis_result.code,
+                        request,
+                        analyst_db,
+                        "Query returned 0 results"
+                    )
+                    logger.info(f"Query diagnostic completed. Found {len(diagnostic.problematic_filters)} problematic filters")
+                except Exception as diag_e:
+                    logger.warning(f"Query diagnostic failed: {str(diag_e)}")
+            
+            # Generate intelligent follow-up questions with diagnostic insights
             intelligent_followup_questions = await _generate_intelligent_followup_questions(
                 enhanced_message,  # original user question
                 analysis_result.code if analysis_result else "",  # failed query
                 dictionaries,
                 analyst_db
             )
+            
+            # Add diagnostic-based suggestions if available
+            if diagnostic and diagnostic.suggested_fixes:
+                # Enhance the additional insights with diagnostic findings
+                diagnostic_insights = "\n".join([
+                    "Query Analysis Results:",
+                    f"• {len(diagnostic.problematic_filters)} filters may be too restrictive",
+                    "• " + "\n• ".join(diagnostic.suggested_fixes[:3])  # Top 3 suggestions
+                ])
+                
+                # Add diagnostic insights to follow-up questions if they're actionable
+                for fix in diagnostic.suggested_fixes[:2]:  # Add top 2 as questions
+                    if "try" in fix.lower():
+                        question = fix.replace("try", "Can we try").replace("Try", "Can we try")
+                        if question not in intelligent_followup_questions:
+                            intelligent_followup_questions.append(question)
+            
         except Exception as e:
-            logger.warning(f"Failed to generate intelligent follow-up questions: {e}")
+            logger.warning(f"Enhanced zero results analysis failed: {e}")
             intelligent_followup_questions = [
                 "Let's try the same query with broader search criteria",
                 "Can we explore the available data with fewer filters?", 
