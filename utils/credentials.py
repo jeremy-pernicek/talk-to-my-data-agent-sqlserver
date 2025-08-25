@@ -21,6 +21,18 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import AliasChoices, AliasPath, Field, field_validator
 from pydantic_settings import BaseSettings
 
+# Force load .env file before credential classes are defined
+try:
+    from dotenv import load_dotenv
+    # Try multiple possible locations for .env file
+    for env_path in [Path("/opt/code/.env"), Path(".env")]:
+        if env_path.exists():
+            load_dotenv(env_path, override=True)
+            logging.info(f"Loaded .env from {env_path}")
+            break
+except ImportError:
+    pass
+
 
 class DRCredentials(BaseSettings):
     """Base class for credentials that loads from .env file"""

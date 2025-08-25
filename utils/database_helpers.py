@@ -18,6 +18,21 @@ import functools
 import json
 import logging
 import time
+import os
+from pathlib import Path
+
+# Force load .env file for DataRobot deployments
+try:
+    from dotenv import load_dotenv
+    env_path = Path("/opt/code/.env")
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+        logging.info(f"Loaded .env file from {env_path}")
+    else:
+        # Try current directory
+        load_dotenv(override=True)
+except ImportError:
+    pass  # dotenv not available
 import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager

@@ -384,6 +384,13 @@ ROLE:
 Your job is to write an EFFICIENT Microsoft SQL Server (T-SQL) query that directly answers the user's business question WITHOUT loading entire tables.
 CRITICAL: Build targeted queries with specific WHERE clauses and JOINs that filter data at the database level.
 NEVER load entire tables or views - they can contain millions of rows and will cause timeouts.
+
+CRITICAL: ENSURE YOUR QUERY RETURNS DATA (AVOID 0-ROW RESULTS):
+- Use FLEXIBLE matching instead of exact values (LIKE patterns, multiple OR conditions)
+- Use COALESCE for potentially NULL columns
+- Start with broader criteria, then narrow if needed
+- Test with simple SELECT DISTINCT queries first if unsure about column values
+
 The result set should not only answer the question, but provide the necessary context so the user can fully understand how the data answers the question.
 For example, if the user asks, "Which State has the highest revenue?" Your query might return the top 10 states by revenue sorted in descending order since this would help the user understand how the state with the highest revenue compares to the other states.
 
@@ -424,6 +431,21 @@ PERFORMANCE OPTIMIZATION FOR LARGE DATASETS:
 - Specify only needed columns - never use SELECT * in production queries
 - For time-based analysis, filter dates first: WHERE DateColumn >= DATEADD(day, -30, GETDATE())
 - Consider using CTEs (WITH clauses) to build complex queries step by step
+
+CRITICAL: AVOID 0-ROW RESULTS - USE FLEXIBLE MATCHING:
+- NEVER assume exact values for categorical columns without exploring first
+- For Position: Use LIKE '%Defense%' OR Position = 'D' OR Position = 'Defenseman' (flexible)
+- For Status: Use IN ('UFA', 'RFA', 'Free Agent', 'Unrestricted', 'Restricted') 
+- For dates: Check multiple formats (2024, 2025, '2024-25', YEAR(date) = 2024)
+- ALWAYS use COALESCE() for columns that might be NULL
+- Start with broader criteria, then narrow down if too many results
+
+DATA EXPLORATION STRATEGY:
+- Start with simple SELECT DISTINCT column_name queries to see actual values
+- Use LIKE patterns instead of exact matches for text columns
+- Check for NULL values with COALESCE or IS NOT NULL
+- Use >= and <= instead of = for numeric comparisons when possible
+- Always include ORDER BY to ensure consistent, meaningful results
 
 CRITICAL EFFICIENCY RULES FOR LLM-GENERATED QUERIES:
 - For trend analysis over time: Default to last 12 months unless user specifies otherwise
@@ -490,25 +512,33 @@ Example JOIN with schema-qualified tables:
       ON p.NHLId = tm.PlayerId
   WHERE p.Position = 'Defense'
   
-EXAMPLE: Finding players outperforming contracts (EFFICIENT QUERY):
-  -- GOOD: Targeted query with filters
+EXAMPLE: Finding players outperforming contracts (FLEXIBLE APPROACH):
+  -- GOOD: Flexible query that avoids 0 results
   SELECT TOP 20
       p.Firstname + ' ' + p.LastName AS PlayerName,
       t.Name AS TeamName,
-      tps.ContractStatus,
-      tps.CapHitAug AS CapHit,
+      p.Position,
+      COALESCE(tps.ContractStatus, 'Unknown') AS FreeAgentStatus,
+      FORMAT(tps.CapHitAug, 'C0') AS CapHit,
       tps.PTS AS Points,
-      tps.PTS / (tps.CapHitAug / 1000000.0) AS PointsPerMillion
+      CASE 
+          WHEN tps.CapHitAug > 0 
+          THEN ROUND(tps.PTS / (tps.CapHitAug / 1000000.0), 2)
+          ELSE 0 
+      END AS PointsPerMillion
   FROM [PuckPedia].[vwPlayers] p
   INNER JOIN [PuckPedia].[vwTeamPlayerSummary] tps 
       ON p.PlayerId = tps.NHLPlayerId
   INNER JOIN [PuckPedia].[vwTeams] t 
       ON tps.TeamId = t.TeamId
-  WHERE p.Position = 'Defense'  -- Filter FIRST
-      AND tps.ContractStatus IN ('UFA', 'RFA')  -- Specific status
-      AND tps.CapHitAug > 0  -- Has contract
-      AND tps.PTS > 15  -- Performance threshold
+  WHERE (p.Position LIKE '%D%' OR p.Position = 'Defense' OR p.Position = 'Defenseman')  -- Flexible position
+      AND tps.ContractStatus IN ('UFA', 'RFA', 'Free Agent', 'Unrestricted')  -- Multiple status values
+      AND tps.CapHitAug > 500000  -- Meaningful contract (flexible threshold)
+      AND tps.GP > 10  -- Played games
   ORDER BY PointsPerMillion DESC
+  
+  -- BAD: Too restrictive (RETURNS 0 ROWS!)
+  -- WHERE p.Position = 'Defense' AND tps.ContractStatus = 'UFA' AND tps.ContractExpiry = 2025
   
   -- BAD: Loading entire table (WILL TIMEOUT!)
   -- SELECT * FROM [PuckPedia].[vwTeamPlayerCapYear]
