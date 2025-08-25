@@ -398,8 +398,9 @@ SQL SERVER SPECIFIC CONSIDERATIONS:
 - Use TOP instead of LIMIT for limiting results (e.g., SELECT TOP 10 * FROM table)
 - Use square brackets [] for identifiers with spaces or reserved words
 - For schema-qualified tables, use format [schema].[table] (e.g., [hr].[employees], [finance].[transactions])
-- When table names are provided with schema prefix (e.g., 'hr.employees'), preserve the schema in your queries
-- MULTI-SCHEMA SUPPORT: When multiple schemas are configured, tables will be presented with schema prefixes. Always use the full schema.table format in queries when provided (e.g., hr.employees, finance.budgets, inventory.products)
+- IMPORTANT: When table names are provided with a dot (e.g., 'PuckPedia.vwPlayers'), this is schema.table format - split and format as [PuckPedia].[vwPlayers]
+- NEVER use database.schema.table format when the table name already contains the schema (avoid [DRData].[dbo].[PuckPedia.vwPlayers])
+- MULTI-SCHEMA SUPPORT: Tables with dots indicate schema.table format - properly split them into [schema].[table]
 - String concatenation uses + operator
 - Use GETDATE() for current timestamp
 - Use DATEDIFF() for date calculations
@@ -462,7 +463,27 @@ CRITICAL: For aggregations on large tables with date columns:
    - Default to: WHERE [As Of Date] >= DATEADD(month, -3, GETDATE())
    - Never aggregate without a WHERE clause on this table
 
-- Example incorrect syntax that will fail:
+TABLE NAME EXAMPLES - CRITICAL FOR MULTI-SCHEMA SUPPORT:
+CORRECT table references when table name contains schema:
+  - Table provided as: 'PuckPedia.vwPlayers' → Use: [PuckPedia].[vwPlayers] 
+  - Table provided as: 'ML.TermModelData' → Use: [ML].[TermModelData]
+  - Table provided as: 'rdo.vwContract_RFA_UFA' → Use: [rdo].[vwContract_RFA_UFA]
+
+INCORRECT (will fail with "Invalid object name"):
+  - DON'T: [DRData].[dbo].[PuckPedia.vwPlayers]  -- This treats "PuckPedia.vwPlayers" as table name
+  - DON'T: [DRData].[dbo].[ML.TermModelData]  -- This treats "ML.TermModelData" as table name
+
+Example JOIN with schema-qualified tables:
+  SELECT TOP 10
+      p.Firstname,
+      p.LastName,
+      tm.ch AS CurrentCapHit
+  FROM [PuckPedia].[vwPlayers] p
+  INNER JOIN [ML].[TermModelData] tm
+      ON p.NHLId = tm.PlayerId
+  WHERE p.Position = 'Defense'
+  
+- Example incorrect GROUP BY syntax that will fail:
   SELECT Region, Product, Customer, AVG(Sales) as AvgSales  -- ERROR: Customer not in GROUP BY!
   FROM SalesTable
   GROUP BY Region, Product
@@ -493,7 +514,10 @@ For example, seemingly numeric columns might contain non-numeric formatting such
 When performing date operations on a date column, consider casting that column as a DATE for error redundancy.
 To ensure case sensitivity of column names, use quotes around column names.
 This query will be executed using the pytds Python Connector. Make sure the query will be compatible with the pytds Python Connector.
-Always reference tables fully quoted and qualified, as in '[{database}].[{schema}].[TABLE_NAME]' and quote any column names in the query.
+TABLE REFERENCING RULES:
+- If table name contains a dot (e.g., 'PuckPedia.vwPlayers'), it's already schema-qualified: use [PuckPedia].[vwPlayers]
+- If table name has no dot (e.g., 'employees'), use [{database}].[{schema}].[employees]
+- NEVER write [database].[schema].[schema.table] - this is incorrect and will fail
 
 REATTEMPT:
 It's possible that your query will fail due to a SQL error or return an empty result set.
