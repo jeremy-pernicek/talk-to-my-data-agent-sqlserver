@@ -977,7 +977,7 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
         self,
         *table_names: str,
         analyst_db: Any,
-        sample_size: int = 5000,
+        sample_size: int = 1000,
         timeout: int | None = None,
     ) -> list[str]:
         """Load selected tables from SQL Server as pandas DataFrames
@@ -1007,6 +1007,9 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                     qualified_table = f"[{self._credentials.db_schema}].[{table}]"
                     
                 query = f"SELECT TOP {sample_size} * FROM {qualified_table}"
+                
+                # Use shorter timeout for data loading to prevent hanging
+                load_timeout = min(timeout or 300, 300)  # Max 5 minutes for data loading
 
                 try:
                     # First, get table size information for better diagnostics
@@ -1014,17 +1017,20 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                         count_query = (
                             f"SELECT COUNT(*) as row_count FROM {qualified_table}"
                         )
-                        count_result = self.execute_query(count_query, timeout)
+                        # Use even shorter timeout for count query (30 seconds)
+                        count_result = self.execute_query(count_query, 30)
                         total_rows = count_result[0]["row_count"] if count_result else 0
                         logger.info(
-                            f"Loading table {table}: {total_rows} total rows, sampling {sample_size} rows"
+                            f"Loading table {table}: {total_rows} total rows, sampling {sample_size} rows (timeout: {load_timeout}s)"
                         )
-                    except Exception:
+                    except Exception as count_error:
                         logger.info(
-                            f"Loading table {table}: unable to get row count, sampling {sample_size} rows"
+                            f"Loading table {table}: unable to get row count ({str(count_error)}), sampling {sample_size} rows (timeout: {load_timeout}s)"
                         )
 
-                    df = self.get_table_as_dataframe(query, timeout)
+                    # Log start of data loading for user feedback
+                    logger.info(f"Starting data load for table {table}...")
+                    df = self.get_table_as_dataframe(query, load_timeout)
 
                     if isinstance(df, str):
                         logger.error(f"Failed to fetch data from {table}: {df}")
@@ -1073,30 +1079,114 @@ class SQLServerOperatorPytds(DatabaseOperator["SQLServerCredentials"]):
                     logger.error(f"Error loading table {table}: {str(e)}")
                     logger.error(f"Query attempted: {query}")
 
-                    # Provide helpful error messages based on error type
+                    # Progressive fallback with reduced sample sizes
                     error_str = str(e).lower()
-                    if "schema" in error_str or "type" in error_str:
-                        logger.error(
-                            f"Schema issue detected for table {table}. This may be due to mixed data types in columns."
-                        )
-                        logger.error(
-                            "Try using a smaller sample_size or check for data consistency in the table."
-                        )
-                    elif "timeout" in error_str:
-                        logger.error(
-                            f"Timeout loading table {table}. Try increasing timeout or reducing sample_size."
-                        )
-                    elif "memory" in error_str:
-                        logger.error(
-                            f"Memory issue loading table {table}. Try reducing sample_size significantly."
-                        )
+                    fallback_successful = False
+                    
+                    # Enhanced timeout detection
+                    is_timeout_error = any(timeout_term in error_str for timeout_term in [
+                        "timeout", "timed out", "time out", "exceeded", "slow", "long"
+                    ])
+                    
+                    if is_timeout_error:
+                        logger.warning(f"Table {table} loading timed out after {load_timeout}s. Attempting progressive fallback with smaller sample sizes...")
+                    
+                    if is_timeout_error or "memory" in error_str or sample_size > 100:
+                        fallback_sizes = [500, 250, 100, 50] if sample_size > 500 else [100, 50, 25]
+                        
+                        for fallback_size in fallback_sizes:
+                            if fallback_size >= sample_size:
+                                continue
+                                
+                            logger.info(f"Attempting progressive fallback for {table} with sample_size={fallback_size}")
+                            fallback_query = f"SELECT TOP {fallback_size} * FROM {qualified_table}"
+                            
+                            try:
+                                # Use even shorter timeout for fallback attempts
+                                fallback_timeout = min(load_timeout // 2, 120)  # Max 2 minutes for fallback
+                                fallback_df = self.get_table_as_dataframe(fallback_query, fallback_timeout)
+                                
+                                if isinstance(fallback_df, str):
+                                    logger.warning(f"Fallback failed for {table} with size {fallback_size}: {fallback_df}")
+                                    continue
+                                
+                                if fallback_df.is_empty():
+                                    logger.warning(f"Table {table} is empty (fallback with size {fallback_size})")
+                                    continue
+                                
+                                # Success with fallback
+                                pandas_df = fallback_df.to_pandas()
+                                logger.info(
+                                    f"Table {table}: fallback successful with {len(pandas_df)} rows, {len(pandas_df.columns)} columns (sample_size={fallback_size})"
+                                )
+                                
+                                # Create dataset object
+                                from utils.analyst_db import DataSourceType
+                                from utils.schema import AnalystDataset
+
+                                dataset = AnalystDataset(name=table, data=pandas_df)
+
+                                # Register with analyst DB
+                                if analyst_db:
+                                    await analyst_db.register_dataset(
+                                        dataset, DataSourceType.DATABASE
+                                    )
+
+                                names.append(table)
+                                logger.info(f"Successfully loaded and registered table: {table} (via fallback)")
+                                fallback_successful = True
+                                break
+                                
+                            except Exception as fallback_e:
+                                logger.warning(f"Fallback attempt failed for {table} with size {fallback_size}: {str(fallback_e)}")
+                                continue
+                    
+                    if not fallback_successful:
+                        # Provide helpful error messages based on error type
+                        if "schema" in error_str or "type" in error_str:
+                            logger.error(
+                                f"Schema issue detected for table {table}. This may be due to mixed data types in columns."
+                            )
+                            logger.error(
+                                "Progressive fallback with smaller sample sizes also failed. Check for data consistency in the table."
+                            )
+                        elif "timeout" in error_str:
+                            logger.error(
+                                f"Timeout loading table {table} after {load_timeout}s. Progressive fallback with smaller sample sizes also failed."
+                            )
+                            logger.error(
+                                "This table is too large or complex to load within reasonable time limits. "
+                                "Consider using a database client to inspect the table structure and add appropriate WHERE clauses."
+                            )
+                        elif "memory" in error_str:
+                            logger.error(
+                                f"Memory issue loading table {table}. Progressive fallback with smaller sample sizes also failed."
+                            )
+                        else:
+                            logger.error(f"Table {table} could not be loaded after progressive fallback attempts.")
 
                     continue
 
+            # Provide summary report of loading results
+            total_requested = len(table_names)
+            total_loaded = len(names)
+            total_failed = total_requested - total_loaded
+            
+            if total_loaded == 0:
+                logger.error(f"Failed to load any of the {total_requested} requested tables")
+            elif total_failed == 0:
+                logger.info(f"Successfully loaded all {total_loaded} requested tables")
+            else:
+                logger.warning(f"Loaded {total_loaded}/{total_requested} tables successfully. {total_failed} tables failed to load.")
+                logger.info(f"Successfully loaded tables: {names}")
+                failed_tables = [table for table in table_names if table not in names]
+                logger.warning(f"Failed tables: {failed_tables}")
+            
             return names
 
         except Exception as e:
-            logger.error(f"Error fetching SQL Server data: {str(e)}")
+            logger.error(f"Critical error in SQL Server data loading process: {str(e)}")
+            logger.error("This may indicate a fundamental connection or configuration issue")
             return []
 
     def get_object_type(

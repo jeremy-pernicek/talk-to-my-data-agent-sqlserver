@@ -528,7 +528,7 @@ async def load_from_database(
     data: LoadDatabaseRequest,
     background_tasks: BackgroundTasks,
     analyst_db: AnalystDB = Depends(get_initialized_db),
-    sample_size: int = 5000,
+    sample_size: int = 1000,
 ) -> list[str]:
     dataset_names = []
 
