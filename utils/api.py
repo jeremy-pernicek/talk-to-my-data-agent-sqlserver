@@ -1206,6 +1206,111 @@ async def run_analysis(
         )
 
 
+async def _generate_intelligent_followup_questions(
+    original_question: str, 
+    failed_query: str, 
+    dictionaries: list,
+    analyst_db: AnalystDB
+) -> list[str]:
+    """
+    Generate intelligent follow-up questions based on the failed query and available data schema.
+    These questions should be more likely to return results.
+    """
+    # Extract key information from the original question and failed query
+    question_keywords = original_question.lower()
+    query_upper = failed_query.upper()
+    
+    # Build context about available data
+    schema_context = []
+    for dictionary in dictionaries:
+        if dictionary and dictionary.column_descriptions:
+            table_name = dictionary.name
+            columns = [col.column for col in dictionary.column_descriptions]
+            schema_context.append(f"Table {table_name}: {', '.join(columns)}")
+    
+    # Create a prompt for generating better follow-up questions
+    followup_prompt = f"""
+Based on a failed query that returned 0 results, suggest 3 specific follow-up questions that are more likely to return data.
+
+CONTEXT:
+- Original user question: "{original_question}"
+- Failed SQL query: {failed_query}
+- Available data schema: {chr(10).join(schema_context)}
+
+REQUIREMENTS:
+- Questions should be more general/broader than the original
+- Questions should use the actual column names from the schema
+- Questions should be actionable and likely to return results
+- Focus on exploring the data to understand what's available
+- Don't ask generic questions like "what data is available" - be specific
+
+Generate 3 follow-up questions that would help the user understand why their original query failed and suggest alternative approaches that might work.
+"""
+
+    try:
+        # Generate follow-up questions using LLM
+        messages: list[ChatCompletionMessageParam] = [
+            ChatCompletionSystemMessageParam(
+                role="system",
+                content="You are a data analyst helping users refine their questions when queries return no results. Generate specific, actionable follow-up questions."
+            ),
+            ChatCompletionUserMessageParam(
+                role="user", 
+                content=followup_prompt
+            )
+        ]
+
+        from pydantic import BaseModel
+        
+        class FollowupQuestionGeneration(BaseModel):
+            questions: list[str]
+
+        async with AsyncLLMClient() as client:
+            completion = await client.chat.completions.create(
+                response_model=FollowupQuestionGeneration,
+                model=ALTERNATIVE_LLM_BIG,
+                temperature=0.3,
+                messages=messages,
+            )
+
+        return completion.questions if completion.questions else [
+            "Let's try a broader search with fewer filters",
+            "Can we explore what player positions are available in the data?",
+            "What contract statuses exist in the database?"
+        ]
+        
+    except Exception as e:
+        logger.warning(f"Failed to generate intelligent follow-up questions: {e}")
+        # Fallback to some general but better questions
+        fallback_questions = []
+        
+        if "defense" in question_keywords or "position" in question_keywords:
+            fallback_questions.extend([
+                "What player positions are available in the data?",
+                "Can we see all defensemen regardless of contract status?",
+                "What are the different ways positions are recorded in the database?"
+            ])
+        elif "contract" in question_keywords or "free agent" in question_keywords:
+            fallback_questions.extend([
+                "What contract statuses are available in the data?",
+                "Can we see all free agents regardless of position?",
+                "What players have contracts expiring soon?"
+            ])
+        elif "team" in question_keywords:
+            fallback_questions.extend([
+                "What teams are represented in the database?",
+                "Can we see player distribution across teams?",
+                "What team-related data is available?"
+            ])
+        else:
+            fallback_questions = [
+                "Let's try the same query with broader search criteria",
+                "Can we explore the available data with fewer filters?",
+                "What would a simpler version of this question look like?"
+            ]
+            
+        return fallback_questions[:3]
+
 async def _validate_column_names_in_query(query: str, dictionaries: list, table_names: list[str]) -> list[str]:
     """
     Validate that column names referenced in the SQL query actually exist in the data dictionaries.
@@ -1612,16 +1717,35 @@ async def run_complete_analysis(
         # The analysis_result already contains the query and empty dataset
         # which will be displayed to the user
         
-        # Add a simple business result explaining the zero results
+        # Generate intelligent follow-up questions based on the failed query and schema
+        try:
+            # Get dictionaries for intelligent question generation
+            dictionaries = []
+            for dataset_name in request.dataset_names:
+                dictionary = await analyst_db.get_data_dictionary(dataset_name)
+                if dictionary:
+                    dictionaries.append(dictionary)
+            
+            intelligent_followup_questions = await _generate_intelligent_followup_questions(
+                enhanced_message,  # original user question
+                analysis_result.code if analysis_result else "",  # failed query
+                dictionaries,
+                analyst_db
+            )
+        except Exception as e:
+            logger.warning(f"Failed to generate intelligent follow-up questions: {e}")
+            intelligent_followup_questions = [
+                "Let's try the same query with broader search criteria",
+                "Can we explore the available data with fewer filters?", 
+                "What would a simpler version of this question look like?"
+            ]
+        
+        # Add a business result explaining the zero results with intelligent follow-up questions
         empty_result_message = GetBusinessAnalysisResult(
             status="success",
             bottom_line="The query returned 0 results. This may indicate that the search criteria are too restrictive or there is no data matching the specified conditions.",
             additional_insights="Consider:\n• Using broader search criteria\n• Checking if the data exists with simpler filters\n• Verifying column values match the actual data\n• Using LIKE patterns instead of exact matches",
-            follow_up_questions=[
-                "What data is actually available in the database?",
-                "Can we see a sample of records without filters?",
-                "What are the distinct values for the columns being filtered?"
-            ],
+            follow_up_questions=intelligent_followup_questions,
             metadata=GetBusinessAnalysisMetadata(
                 duration=0,
                 attempts=1,
