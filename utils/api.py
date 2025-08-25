@@ -1206,19 +1206,79 @@ async def run_analysis(
         )
 
 
+async def _validate_column_names_in_query(query: str, dictionaries: list, table_names: list[str]) -> list[str]:
+    """
+    Validate that column names referenced in the SQL query actually exist in the data dictionaries.
+    
+    Returns:
+    - List of validation errors (empty if all columns are valid)
+    """
+    import re
+    
+    validation_errors = []
+    
+    # Create a mapping of table names to their columns
+    table_columns = {}
+    for dictionary in dictionaries:
+        if dictionary and dictionary.column_descriptions:
+            table_name = dictionary.name
+            columns = {col.column.lower() for col in dictionary.column_descriptions}
+            table_columns[table_name.lower()] = columns
+            
+            # Also handle schema.table format
+            if '.' in table_name:
+                schema, table = table_name.split('.', 1)
+                table_columns[table.lower()] = columns
+    
+    # Extract column references from the query
+    # Look for patterns like: table_alias.column_name or just column_name
+    column_patterns = [
+        r'\b([a-zA-Z_]\w*\.[a-zA-Z_]\w*)\b',  # table.column
+        r'SELECT\s+.*?(\w+)(?:\s+AS\s+\w+)?(?:\s*,|\s+FROM)',  # columns in SELECT
+        r'WHERE\s+.*?(\w+)\s*[=<>]',  # columns in WHERE
+        r'ORDER\s+BY\s+.*?(\w+)',  # columns in ORDER BY
+        r'GROUP\s+BY\s+.*?(\w+)',  # columns in GROUP BY
+    ]
+    
+    referenced_columns = set()
+    for pattern in column_patterns:
+        matches = re.finditer(pattern, query, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+        for match in matches:
+            referenced_columns.add(match.group(1).lower())
+    
+    # Check if referenced columns exist in any of the tables
+    for col_ref in referenced_columns:
+        if '.' in col_ref:
+            # Handle table.column format
+            table_part, col_part = col_ref.split('.', 1)
+            if table_part in table_columns:
+                if col_part not in table_columns[table_part]:
+                    validation_errors.append(f"Column '{col_part}' does not exist in table '{table_part}'. Available columns: {sorted(table_columns[table_part])}")
+        else:
+            # Check if column exists in any table
+            found = False
+            for table_name, columns in table_columns.items():
+                if col_ref in columns:
+                    found = True
+                    break
+            if not found and col_ref not in ['count', 'sum', 'avg', 'max', 'min', 'top']:  # Ignore SQL functions
+                validation_errors.append(f"Column '{col_ref}' not found in any available table")
+    
+    return validation_errors
+
 async def _generate_database_analysis_code(
     request: RunDatabaseAnalysisRequest,
     analyst_db: AnalystDB,
     validation_error: InvalidGeneratedCode | None = None,
 ) -> str:
     """
-    Generate Snowflake SQL analysis code based on data samples and question.
+    Generate SQL Server SQL analysis code based on data samples and question.
 
     Parameters:
     - request: DatabaseAnalysisRequest containing data samples and question
 
     Returns:
-    - Dictionary containing generated code and description
+    - Generated SQL code string with validation
     """
 
     # Convert dictionary data structure to list of columns for all tables
@@ -1235,6 +1295,23 @@ async def _generate_database_analysis_code(
 
         sample_str = f"Table: {table}\n{df.head(10).to_string()}"
         all_samples.append(sample_str)
+        
+    # Create enhanced prompt with column name validation guidance
+    column_info = []
+    for dictionary in dictionaries:
+        if dictionary and dictionary.column_descriptions:
+            table_name = dictionary.name
+            columns = [col.column for col in dictionary.column_descriptions]
+            column_info.append(f"Table {table_name} has columns: {', '.join(columns)}")
+    
+    validation_guidance = f"""
+CRITICAL COLUMN VALIDATION:
+The following are the EXACT column names available in each table:
+{chr(10).join(column_info)}
+
+IMPORTANT: Only use these exact column names in your query. Do not invent or assume column names.
+If you need similar functionality, use the closest matching column name from the list above.
+"""
 
     # Create messages for OpenAI
     messages: list[ChatCompletionMessageParam] = [
@@ -1242,6 +1319,9 @@ async def _generate_database_analysis_code(
         ChatCompletionUserMessageParam(
             content=f"Business Question: {request.question}",
             role="user",
+        ),
+        ChatCompletionUserMessageParam(
+            content=validation_guidance, role="user"
         ),
         ChatCompletionUserMessageParam(
             content=f"Sample Data:\n{chr(10).join(all_samples)}", role="user"
@@ -1264,7 +1344,7 @@ async def _generate_database_analysis_code(
                 ),
                 ChatCompletionUserMessageParam(
                     role="user",
-                    content="Please generate new code that avoids this error.",
+                    content="Please generate new code that avoids this error. Pay special attention to column names and ensure they exist in the data dictionary.",
                 ),
             ]
         )
@@ -1278,6 +1358,14 @@ async def _generate_database_analysis_code(
             messages=messages,
         )
 
+    # Validate column names in the generated query
+    validation_errors = await _validate_column_names_in_query(completion.code, dictionaries, request.dataset_names)
+    if validation_errors:
+        error_msg = "Column validation failed: " + "; ".join(validation_errors)
+        logger.warning(f"Generated query has column validation issues: {error_msg}")
+        # Don't fail immediately - let the database execution catch the error
+        # This way we get the database's specific error message which may be more helpful
+    
     return completion.code
 
 

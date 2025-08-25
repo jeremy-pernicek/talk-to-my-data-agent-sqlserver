@@ -17,26 +17,39 @@ import { faCog } from '@fortawesome/free-solid-svg-icons/faCog';
 import { SettingsModal } from '@/components/SettingsModal';
 
 const DatasetList = ({ highlight }: { highlight: boolean }) => {
-  const { data, isLoading } = useGeneratedDictionaries<SidebarMenuOptionType[]>({
-    select: getDictionariesMenu,
-  });
+  const { data: rawData, isLoading } = useGeneratedDictionaries();
   const { t } = useTranslation();
   const params = useParams();
   const navigate = useNavigate();
+
+  // Transform data to include progress indicators
+  const data = rawData ? getDictionariesMenu(rawData) : [];
+  const inProgressCount = rawData ? rawData.filter(d => d.in_progress).length : 0;
 
   return (
     <div className="relative flex flex-col max-h-[300px]">
       <div className="flex justify-between items-center pb-3">
         <div>
           <p className="text-base font-semibold">{t('Datasets')}</p>
+          {inProgressCount > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t('Generating {{count}} dictionaries...', { count: inProgressCount })}
+            </p>
+          )}
         </div>
         <AddDataModal highlight={highlight} />
       </div>
       <div className="flex-1 overflow-y-auto">
         <SidebarMenu
-          options={data}
+          options={data?.map(item => ({
+            ...item,
+            // Add loading indicator to items being processed
+            name: rawData?.find(d => d.name === item.name)?.in_progress 
+              ? `${item.name} ⏳`
+              : item.name
+          }))}
           activeKey={params.dataId}
-          onClick={({ name }) => navigate(generateDataRoute(name))}
+          onClick={({ name }) => navigate(generateDataRoute(name.replace(' ⏳', '')))}
         />
         {isLoading && (
           <div className="mt-4 flex justify-center">

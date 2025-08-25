@@ -436,9 +436,19 @@ CRITICAL: AVOID 0-ROW RESULTS - USE FLEXIBLE MATCHING:
 - NEVER assume exact values for categorical columns without exploring first
 - For Position: Use LIKE '%Defense%' OR Position = 'D' OR Position = 'Defenseman' (flexible)
 - For Status: Use IN ('UFA', 'RFA', 'Free Agent', 'Unrestricted', 'Restricted') 
-- For dates: Check multiple formats (2024, 2025, '2024-25', YEAR(date) = 2024)
+- For dates: Check multiple formats and use proper date comparisons
+  * Use YEAR(date) = 2024 instead of exact date matches
+  * Use date ranges: date >= '2024-01-01' AND date < '2025-01-01'
+  * NEVER use LIKE patterns for dates (e.g., LIKE '%2025-2026%')
+  * For contract years, use YEAR(ContractExpiry) = 2025
 - ALWAYS use COALESCE() for columns that might be NULL
 - Start with broader criteria, then narrow down if too many results
+
+ENHANCED DATE FILTERING RULES:
+- Contract expiry: Use YEAR(ContractExpiry) = 2025 instead of string matching
+- Salary cap years: Use proper date comparisons, not LIKE patterns
+- Always consider that dates might be stored as DATE, DATETIME, or VARCHAR
+- Test with simple date queries first: WHERE ContractExpiry IS NOT NULL
 
 ERROR RECOVERY - If query returns 0 rows:
 1. First try broader WHERE clauses (LIKE instead of =, OR instead of AND)
@@ -542,10 +552,12 @@ EXAMPLE: Finding players outperforming contracts (FLEXIBLE APPROACH):
       AND tps.ContractStatus IN ('UFA', 'RFA', 'Free Agent', 'Unrestricted')  -- Multiple status values
       AND tps.CapHitAug > 500000  -- Meaningful contract (flexible threshold)
       AND tps.GP > 10  -- Played games
+      AND (tps.ContractExpiry IS NULL OR YEAR(tps.ContractExpiry) >= 2025)  -- Proper date handling
   ORDER BY PointsPerMillion DESC
   
   -- BAD: Too restrictive (RETURNS 0 ROWS!)
   -- WHERE p.Position = 'Defense' AND tps.ContractStatus = 'UFA' AND tps.ContractExpiry = 2025
+  -- WHERE pc.ContractEnd LIKE '%2025-2026%'  -- NEVER use LIKE for dates!
   
   -- BAD: Loading entire table (WILL TIMEOUT!)
   -- SELECT * FROM [PuckPedia].[vwTeamPlayerCapYear]

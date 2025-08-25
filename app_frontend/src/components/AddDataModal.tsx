@@ -27,6 +27,8 @@ import { useAppState } from '@/state/hooks';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AxiosError } from 'axios';
 import { TruncatedText } from './ui-custom/truncated-text';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/pages/routes';
 
 export const AddDataModal = ({ highlight }: { highlight?: boolean }) => {
   const { data } = useFetchAllDatasets();
@@ -39,6 +41,7 @@ export const AddDataModal = ({ highlight }: { highlight?: boolean }) => {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const { mutate, progress } = useFileUploadMutation({
     onSuccess: () => {
@@ -57,6 +60,9 @@ export const AddDataModal = ({ highlight }: { highlight?: boolean }) => {
     onSuccess: () => {
       setIsPending(false);
       setIsOpen(false);
+      // Navigate to data page immediately after successful load initiation
+      // Dictionaries will be generated in the background
+      navigate(ROUTES.DATA);
     },
     onError: (error: Error) => {
       setIsPending(false);
