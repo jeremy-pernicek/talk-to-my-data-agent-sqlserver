@@ -196,7 +196,9 @@ app_runtime_parameters = [
     ),
 ]
 
-db_credential = get_database_credentials(DATABASE_CONNECTION_TYPE)
+# Check if we should skip database connection test (e.g., for IP-whitelisted servers)
+skip_db_test = os.getenv("SKIP_DB_CONNECTION_TEST", "false").lower() == "true"
+db_credential = get_database_credentials(DATABASE_CONNECTION_TYPE, test_credentials=not skip_db_test)
 
 db_runtime_parameter_values = get_credential_runtime_parameter_values(
     db_credential, "db"
