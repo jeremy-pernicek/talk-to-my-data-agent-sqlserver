@@ -1469,6 +1469,165 @@ Use flexible WHERE clauses with OR conditions to include multiple variations.
 
     return "\n".join(context_parts)
 
+async def _get_existing_dictionaries_only(dataset_names: list[str], analyst_db: AnalystDB) -> list:
+    """
+    Get only existing data dictionaries WITHOUT triggering regeneration.
+    This prevents the 25+ minute freeze during chat analysis.
+    
+    Args:
+        dataset_names: List of dataset names to get dictionaries for
+        analyst_db: Database instance
+        
+    Returns:
+        List of existing DataDictionary objects (may be shorter than input list)
+    """
+    existing_dictionaries = []
+    
+    for name in dataset_names:
+        try:
+            # Use direct dictionary retrieval - does not trigger regeneration
+            dictionary = await analyst_db.get_data_dictionary(name)
+            if dictionary is not None:
+                existing_dictionaries.append(dictionary)
+                logger.info(f"Found existing dictionary for {name}")
+            else:
+                logger.info(f"No dictionary found for {name} - will use schema exploration fallback")
+        except Exception as e:
+            logger.warning(f"Failed to retrieve dictionary for {name}: {str(e)}")
+    
+    return existing_dictionaries
+
+def _create_fallback_dictionary_from_exploration(exploration) -> "DataDictionary":
+    """
+    Create a basic DataDictionary from schema exploration results when dictionaries are missing.
+    This provides enough information for query generation without triggering expensive regeneration.
+    
+    Args:
+        exploration: TableExplorationResult from schema exploration
+        
+    Returns:
+        Basic DataDictionary with column information
+    """
+    from utils.schema import DataDictionary, DataDictionaryColumn
+    
+    column_descriptions = []
+    
+    for col_sample in exploration.column_samples:
+        # Create a basic description based on column name and sample values
+        description = f"Column {col_sample.column_name}"
+        if col_sample.sample_values:
+            sample_preview = ", ".join(col_sample.sample_values[:3])
+            description += f" (sample values: {sample_preview})"
+        
+        column_descriptions.append(DataDictionaryColumn(
+            column=col_sample.column_name,
+            data_type=col_sample.data_type,
+            description=description
+        ))
+    
+    return DataDictionary(
+        name=exploration.table_name,
+        column_descriptions=column_descriptions
+    )
+
+def _create_strict_column_validation_context(dictionaries: list, exploration_results: dict) -> str:
+    """
+    Create strict validation context that prevents column hallucination.
+    This addresses the critical issue where AI generates queries with non-existent columns.
+    """
+    validation_parts = [
+        "🚨 CRITICAL: STRICT COLUMN VALIDATION REQUIRED 🚨",
+        "",
+        "You MUST ONLY use columns that are explicitly listed below. Any column not in this list DOES NOT EXIST.",
+        "DO NOT assume, guess, or invent column names. DO NOT use columns from your training data.",
+        "",
+        "AVAILABLE COLUMNS BY TABLE:"
+    ]
+    
+    # Create comprehensive column mapping
+    all_columns_by_table = {}
+    
+    # Add columns from dictionaries
+    for dictionary in dictionaries:
+        if dictionary and dictionary.column_descriptions:
+            table_name = dictionary.name
+            columns = [col.column for col in dictionary.column_descriptions]
+            all_columns_by_table[table_name] = columns
+    
+    # Add columns from exploration results for any missing dictionaries
+    explorations = exploration_results.get("explorations", {})
+    for table_name, exploration in explorations.items():
+        if table_name not in all_columns_by_table:
+            columns = [col.column_name for col in exploration.column_samples]
+            all_columns_by_table[table_name] = columns
+    
+    # Generate strict listings
+    for table_name, columns in all_columns_by_table.items():
+        validation_parts.append(f"\n📊 {table_name}:")
+        validation_parts.append(f"   ONLY these columns exist: {', '.join(columns)}")
+        validation_parts.append(f"   Column count: {len(columns)}")
+        
+        # Add common mistake warnings for this specific dataset
+        validation_parts.append(f"   ❌ DO NOT use: Status, TeamName, Team, Player (unless explicitly listed above)")
+    
+    validation_parts.extend([
+        "",
+        "🔍 VALIDATION CHECKLIST before generating query:",
+        "1. ✅ Every column in SELECT clause exists in the tables above",
+        "2. ✅ Every column in WHERE clause exists in the tables above", 
+        "3. ✅ Every column in JOIN conditions exists in both tables",
+        "4. ✅ Every column in ORDER BY exists in the tables above",
+        "",
+        "❌ COMMON MISTAKES TO AVOID:",
+        "- Using 'Status' column (often doesn't exist - check actual column names)",
+        "- Using 'TeamName' from wrong table (verify which table has team info)",
+        "- Assuming column names from other databases or your training data",
+        "- Using columns that 'should exist' but aren't in the lists above",
+        "",
+        "✅ WHEN IN DOUBT:",
+        "- Use only columns you can see in the lists above",
+        "- Prefer simple queries with fewer joins initially",
+        "- Use COALESCE for potentially missing columns",
+    ])
+    
+    return "\n".join(validation_parts)
+
+def _validate_query_semantics(query: str, dictionaries: list) -> list[str]:
+    """
+    Additional semantic validation to catch common query issues beyond column existence.
+    
+    Args:
+        query: SQL query to validate
+        dictionaries: List of data dictionaries
+        
+    Returns:
+        List of semantic validation warnings
+    """
+    warnings = []
+    
+    query_upper = query.upper()
+    
+    # Check for overly restrictive patterns
+    if "= 'NHL'" in query:
+        warnings.append("Filter '= NHL' may be too restrictive - consider using LIKE '%NHL%' or IN ('NHL', 'Active')")
+    
+    if ".Status" in query:
+        warnings.append("Column 'Status' is commonly hallucinated - verify it exists in the schema")
+    
+    if ".TeamName" in query and "vwPlayers" in query:
+        warnings.append("TeamName from Players table may not exist - check if team info is in a separate table")
+        
+    # Check for complex joins without proper relationship validation
+    join_count = query_upper.count("JOIN")
+    if join_count > 2:
+        warnings.append(f"Complex query with {join_count} joins - consider simpler approach initially")
+    
+    # Check for missing TOP clauses on potentially large result sets
+    if "SELECT" in query_upper and "TOP" not in query_upper and "LIMIT" not in query_upper:
+        warnings.append("Consider adding TOP clause to limit result size for better performance")
+    
+    return warnings
+
 async def _generate_database_analysis_code(
     request: RunDatabaseAnalysisRequest,
     analyst_db: AnalystDB,
@@ -1488,11 +1647,25 @@ async def _generate_database_analysis_code(
     logger.info("Exploring table schemas and relationships...")
     exploration_results = await _explore_and_validate_schema(request, analyst_db)
 
-    # Convert dictionary data structure to list of columns for all tables
-    dictionaries = [
-        await analyst_db.get_data_dictionary(name) for name in request.dataset_names
-    ]
+    # Phase 2: Get existing dictionaries WITHOUT triggering regeneration
+    # CRITICAL: During chat analysis, never trigger dictionary generation as it causes 25+ minute freezes
+    dictionaries = await _get_existing_dictionaries_only(request.dataset_names, analyst_db)
     all_tables_info = [d.model_dump(mode="json") for d in dictionaries if d is not None]
+    
+    # If we have missing dictionaries, use schema exploration as fallback
+    if len(dictionaries) < len(request.dataset_names):
+        missing_tables = [name for name in request.dataset_names 
+                         if not any(d and d.name == name for d in dictionaries)]
+        logger.warning(f"Missing dictionaries for tables: {missing_tables}. Using schema exploration as fallback.")
+        
+        # Enhance context with exploration results for missing dictionaries
+        for table_name in missing_tables:
+            if table_name in exploration_results.get("explorations", {}):
+                exploration = exploration_results["explorations"][table_name]
+                # Create a basic dictionary structure from exploration
+                fallback_dict = _create_fallback_dictionary_from_exploration(exploration)
+                dictionaries.append(fallback_dict)
+                all_tables_info.append(fallback_dict.model_dump(mode="json"))
 
     # Get sample data for all tables
     all_samples = []
@@ -1501,17 +1674,23 @@ async def _generate_database_analysis_code(
         sample_str = f"Table: {table}\n{df.head(10).to_string()}"
         all_samples.append(sample_str)
         
-    # Create enhanced schema context with exploration results
+    # Create enhanced schema context with strict column enforcement
     schema_context = await _create_enhanced_schema_context(
         exploration_results, dictionaries, request
     )
+    
+    # Add strict column validation context
+    strict_validation_context = _create_strict_column_validation_context(dictionaries, exploration_results)
 
-    # Create messages for OpenAI with enhanced context
+    # Create messages for OpenAI with strict validation context
     messages: list[ChatCompletionMessageParam] = [
         get_external_database().get_system_prompt(),
         ChatCompletionUserMessageParam(
             content=f"Business Question: {request.question}",
             role="user",
+        ),
+        ChatCompletionUserMessageParam(
+            content=strict_validation_context, role="user"
         ),
         ChatCompletionUserMessageParam(
             content=schema_context, role="user"
@@ -1553,12 +1732,24 @@ async def _generate_database_analysis_code(
 
     generated_query = completion.code
     
-    # Phase 2: Enhanced query validation and diagnostic preparation
+    # Phase 2: Enhanced query validation with strict column checking
     validation_errors = await _validate_column_names_in_query(generated_query, dictionaries, request.dataset_names)
     if validation_errors:
-        error_msg = "Column validation failed: " + "; ".join(validation_errors)
-        logger.warning(f"Generated query has column validation issues: {error_msg}")
-        # Store validation info for potential fallback
+        error_msg = "CRITICAL: Column validation failed: " + "; ".join(validation_errors)
+        logger.error(f"Generated query contains non-existent columns: {error_msg}")
+        
+        # For column hallucination, immediately raise an error to trigger retry
+        # This prevents executing queries with non-existent columns
+        raise InvalidGeneratedCode(
+            code=generated_query,
+            exception=ValueError(f"Query contains non-existent columns: {error_msg}")
+        )
+    
+    # Phase 3: Additional semantic validation 
+    semantic_errors = _validate_query_semantics(generated_query, dictionaries)
+    if semantic_errors:
+        logger.warning(f"Query semantic issues detected: {'; '.join(semantic_errors)}")
+        # Don't fail immediately for semantic issues, but log them for potential retry
     
     return generated_query
 
