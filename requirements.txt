@@ -67,7 +67,7 @@ datarobot>=3.6.0,<4.0
 fastapi>=0.115.6,<1.0
 python-multipart>=0.0.20,<1.0
 uvicorn==0.34.2,<1.0
-psutil>=6.1.1,<7.0
+psutil>=6.1.1,<8.0
 pydantic==2.7.4,<3.0
 pydantic-settings==2.4.0,<3.0
 joblib>=1.4.2,<2.0
